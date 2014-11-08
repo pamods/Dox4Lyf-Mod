@@ -39,6 +39,7 @@
       "/pa/units/commanders/tank_base/tank_base.json",
 
       "/pa/units/land/artillery_long/artillery_long.json",
+	  "/pa/units/land/artillery_short/artillery_short.json",
 
       "/pa/units/land/avatar_factory/avatar_factory.json",
       "/pa/units/land/base_bot/base_bot.json",
@@ -75,6 +76,8 @@
 
       "/pa/units/land/teleporter/teleporter.json",
       "/pa/units/land/unit_cannon/unit_cannon.json",
+	  "/pa/units/land/anti_nuke_launcher/anti_nuke_launcher.json",
+	  "/pa/units/land/nuke_launcher/nuke_launcher.json",
 
       "/pa/units/orbital/base_orbital/base_orbital.json",
       "/pa/units/orbital/base_orbital_structure/base_orbital_structure.json",

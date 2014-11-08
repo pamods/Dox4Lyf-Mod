@@ -28,6 +28,10 @@ function BuildHotkeyModel() {
             "/pa/units/air/air_factory/air_factory.json": ["factory", 12],
             "/pa/units/land/bot_factory/bot_factory.json": ["factory", 13],
             "/pa/units/land/vehicle_factory/vehicle_factory.json": ["factory", 14],
+            "/pa/units/land/artillery_short/artillery_short.json": ["combat", 12],
+            "/pa/units/land/anti_nuke_launcher/anti_nuke_launcher.json": ["combat", 9],
+            "/pa/units/land/nuke_launcher/nuke_launcher.json": ["combat", 4],
+
 
           /*
             "/pa/units/land/laser_defense_adv/laser_defense_adv.json": ["combat", 0],
@@ -36,11 +40,8 @@ function BuildHotkeyModel() {
             "/pa/units/land/air_defense_adv/air_defense_adv.json": ["combat", 6],
             "/pa/units/land/artillery_long/artillery_long.json": ["combat", 7],
             "/pa/units/sea/torpedo_launcher_adv/torpedo_launcher_adv.json": ["combat", 8],
-            "/pa/units/land/nuke_launcher/nuke_launcher.json": ["combat", 4],
-            "/pa/units/land/anti_nuke_launcher/anti_nuke_launcher.json": ["combat", 9],
             "/pa/units/land/laser_defense_single/laser_defense_single.json": ["combat", 10],
             "/pa/units/land/air_defense/air_defense.json": ["combat", 11],
-            "/pa/units/land/artillery_short/artillery_short.json": ["combat", 12],
             "/pa/units/sea/torpedo_launcher/torpedo_launcher.json": ["combat", 13],
             "/pa/units/orbital/ion_defense/ion_defense.json": ["combat", 14],
           */

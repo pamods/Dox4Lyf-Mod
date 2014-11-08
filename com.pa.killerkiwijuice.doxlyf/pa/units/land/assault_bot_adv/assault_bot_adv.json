@@ -1,1 +1,80 @@
-{"base_spec":"/pa/units/land/base_bot/base_bot.json","display_name":"!LOC(Giant Dox)","description":"!LOC(Heavy Assault Bot- Mounted with rapid fire anti tank lasers):Giant Dox- Equipped with thick armour and rapidfire anti tank lasers.","max_health":1800,"build_metal_cost":2100,"attachable":{"offsets":{"root":[0,0,0],"head":[0,0,10.5]}},"unit_types":["UNITTYPE_Vehicle","UNITTYPE_Mobile","UNITTYPE_Tank","UNITTYPE_Land","UNITTYPE_Advanced","UNITTYPE_FactoryBuild"],"transportable":{"size":1},"guard_layer":"WL_AnySurface","navigation":{"type":"amphibious","acceleration":200,"brake":200,"move_speed":20,"turn_speed":720},"physics":{"radius":10,"push_class":100},"recon":{"observer":{"items":[{"layer":"surface_and_air","channel":"sight","shape":"capsule","radius":150}]}},"model":{"filename":"/pa/units/land/assault_bot_adv/assault_botX.papa","animations":{"death01":"/pa/units/land/assault_bot_adv/assault_bot_anim_death01X.papa","walk":"/pa/units/land/assault_bot_adv/assault_bot_anim_runX.papa","idle":"/pa/units/land/assault_bot_adv/assault_bot_anim_idleX.papa","aim_up":"/pa/units/land/assault_bot_adv/assault_bot_anim_aim_upX.papa","aim_down":"/pa/units/land/assault_bot_adv/assault_bot_anim_aim_dwnX.papa"},"animtree":"/pa/anim/anim_trees/bipedal_mech_anim_tree.json","walk_speed":30},"tools":[{"spec_id":"/pa/units/land/assault_bot_adv/assault_bot_tool_weaponX.json","aim_bone":"socket_aim","muzzle_bone":"socket_rightMuzzle"},{"spec_id":"/pa/units/land/assault_bot_adv/assault_bot_tool_weaponX.json","aim_bone":"socket_aim","muzzle_bone":"socket_leftMuzzle"}],"events":{"build_complete":{"audio_cue":"/SE/Build_Complete/bot","effect_scale":3},"fired":{"audio_cue":"/SE/Weapons/bot/assault_fire","effect_spec":"/pa/effects/specs/default_small_muzzle_flash.pfx socket_rightMuzzle /pa/effects/specs/default_small_muzzle_flash.pfx socket_leftMuzzle","effect_scale":3},"died":{"audio_cue":"/SE/Death/Bot","effect_scale":3}},"audio":{"loops":{"move":{"cue":"/SE/Movement/bot/assault_loop","flag":"vel_changed","should_start_func":"is_moving","should_stop_func":"is_not_moving"}},"selection_response":{"cue":"/SE/Selection/bot/assault"}},"mesh_bounds":[12,6,12],"TEMP_texelinfo":4.07719}
+{ "TEMP_texelinfo" : 4.0771899999999999,
+  "attachable" : { "offsets" : { "head" : [ 0,
+              0,
+              10.5
+            ],
+          "root" : [ 0,
+              0,
+              0
+            ]
+        } },
+  "audio" : { "loops" : { "move" : { "cue" : "/SE/Movement/bot/assault_loop",
+              "flag" : "vel_changed",
+              "should_start_func" : "is_moving",
+              "should_stop_func" : "is_not_moving"
+            } },
+      "selection_response" : { "cue" : "/SE/Selection/bot/assault" }
+    },
+  "base_spec" : "/pa/units/land/base_bot/base_bot.json",
+  "build_metal_cost" : 2100,
+  "description" : "!LOC(Heavy Assault Bot- Mounted with rapid fire anti tank lasers):Giant Dox- Equipped with thick armour and rapidfire anti tank lasers.",
+  "display_name" : "!LOC(Giant Dox)",
+  "events" : { "build_complete" : { "audio_cue" : "/SE/Build_Complete/bot",
+          "effect_scale" : 3
+        },
+      "died" : { "audio_cue" : "/SE/Death/Bot",
+          "effect_scale" : 3
+        },
+      "fired" : { "audio_cue" : "/SE/Weapons/bot/assault_fire",
+          "effect_scale" : 3,
+          "effect_spec" : "/pa/effects/specs/default_small_muzzle_flash.pfx socket_rightMuzzle /pa/effects/specs/default_small_muzzle_flash.pfx socket_leftMuzzle"
+        }
+    },
+  "guard_layer" : "WL_AnySurface",
+  "max_health" : 1800,
+  "mesh_bounds" : [ 12,
+      6,
+      12
+    ],
+  "model" : { "animations" : { "aim_down" : "/pa/units/land/assault_bot_adv/assault_bot_anim_aim_dwnX.papa",
+          "aim_up" : "/pa/units/land/assault_bot_adv/assault_bot_anim_aim_upX.papa",
+          "death01" : "/pa/units/land/assault_bot_adv/assault_bot_anim_death01X.papa",
+          "idle" : "/pa/units/land/assault_bot_adv/assault_bot_anim_idleX.papa",
+          "walk" : "/pa/units/land/assault_bot_adv/assault_bot_anim_runX.papa"
+        },
+      "animtree" : "/pa/anim/anim_trees/bipedal_mech_anim_tree.json",
+      "filename" : "/pa/units/land/assault_bot_adv/assault_botX.papa",
+      "walk_speed" : 30
+    },
+  "navigation" : { "acceleration" : 200,
+      "brake" : 200,
+      "move_speed" : 20,
+      "turn_speed" : 720,
+      "type" : "amphibious"
+    },
+  "physics" : { "push_class" : 100,
+      "radius" : 10
+    },
+  "recon" : { "observer" : { "items" : [ { "channel" : "sight",
+                "layer" : "surface_and_air",
+                "radius" : 150,
+                "shape" : "capsule"
+              } ] } },
+  "tools" : [ { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_rightMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_adv/assault_bot_tool_weaponX.json"
+      },
+      { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_adv/assault_bot_tool_weaponX.json"
+      }
+    ],
+  "transportable" : { "size" : 1 },
+  "unit_types" : [ "UNITTYPE_Vehicle",
+      "UNITTYPE_Mobile",
+      "UNITTYPE_Tank",
+      "UNITTYPE_Land",
+      "UNITTYPE_Advanced",
+      "UNITTYPE_FactoryBuild"
+    ]
+}

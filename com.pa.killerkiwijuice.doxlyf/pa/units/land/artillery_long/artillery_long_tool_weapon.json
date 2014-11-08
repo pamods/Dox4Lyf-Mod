@@ -1,6 +1,6 @@
 {
   "base_spec":"/pa/tools/base_artillery_turret/base_artillery_turret.json",
-  "ammo_id":"/pa/units/land/tank_heavy_mortar/tank_heavy_mortar_ammoX.json",
+  "ammo_id":"/pa/units/land/tank_heavy_mortar/tank_heavy_mortar_ammoXL.json",
   "ammo_source":"metal",
   "max_firing_velocity":10000,
   "min_firing_velocity":10,
@@ -11,7 +11,7 @@
   "ammo_demand":5,
   "ammo_per_shot":45,
   "max_range":750,
-  "yaw_rate":10,
+  "yaw_rate":20,
   "pitch_rate":10,
   "yaw_range":360,
   "firing_arc_yaw":2,
