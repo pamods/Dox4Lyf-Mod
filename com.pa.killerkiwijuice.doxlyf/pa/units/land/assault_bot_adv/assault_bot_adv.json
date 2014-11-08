@@ -31,7 +31,7 @@
         }
     },
   "guard_layer" : "WL_AnySurface",
-  "max_health" : 1800,
+  "max_health" : 2800,
   "mesh_bounds" : [ 12,
       6,
       12
@@ -63,6 +63,12 @@
   "tools" : [ { "aim_bone" : "socket_aim",
         "muzzle_bone" : "socket_rightMuzzle",
         "spec_id" : "/pa/units/land/assault_bot_adv/assault_bot_tool_weaponX.json"
+      },
+	  { 
+	    "spec_id":"/pa/units/land/assault_bot_adv/assault_bot_squisher_tool_weapon.json",
+        "aim_bone":"bone_root",
+        "muzzle_bone":"bone_root",
+        "show_range":false
       },
       { "aim_bone" : "socket_aim",
         "muzzle_bone" : "socket_leftMuzzle",
