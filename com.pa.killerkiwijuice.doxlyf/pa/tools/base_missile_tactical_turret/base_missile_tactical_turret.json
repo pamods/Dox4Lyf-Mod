@@ -1,0 +1,18 @@
+{ "ammo_id" : "/pa/tools/base_missile_tactical_turret/base_missile_tactical_turret.json",
+  "base_spec" : "/pa/tools/base_turret/base_turret.json",
+  "max_range" : 300,
+  "pitch_range" : 85,
+  "pitch_rate" : 30,
+  "rate_of_fire" : 0.029999999999999999,
+  "target_layers" : [ "WL_LandHorizontal",
+      "WL_WaterSurface",
+      "WL_Air"
+    ],
+  "target_priorities" : [ "Structure - Wall",
+      "Mobile",
+      "Wall"
+    ],
+  "tool_type" : "TOOL_Weapon",
+  "yaw_range" : 180,
+  "yaw_rate" : 90
+}

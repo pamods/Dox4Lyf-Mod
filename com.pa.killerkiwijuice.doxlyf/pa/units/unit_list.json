@@ -43,6 +43,7 @@
       "/pa/units/commanders/tank_base/tank_base.json",
 
       "/pa/units/land/artillery_long/artillery_long.json",
+	  "/pa/units/land/artillery_Xlong/artillery_Xlong.json",
 	  "/pa/units/land/artillery_short/artillery_short.json",
 
       "/pa/units/land/avatar_factory/avatar_factory.json",
