@@ -1,6 +1,6 @@
 {
   "base_spec":"/pa/tools/base_artillery_turret/base_artillery_turret.json",
-  "ammo_id":"/pa/units/land/tank_heavy_mortar/tank_heavy_mortar_ammoXL.json",
+  "ammo_id":"/pa/units/land/tank_heavy_mortar/tank_heavy_mortar_ammoXXL.json",
   "ammo_source":"energy",
   "max_firing_velocity":10000,
   "min_firing_velocity":10,
