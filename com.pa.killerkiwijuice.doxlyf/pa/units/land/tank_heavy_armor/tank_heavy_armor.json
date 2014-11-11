@@ -67,15 +67,20 @@
       "spec_id":"/pa/units/land/tank_heavy_armor/tank_heavy_armor_tool_weapon.json",
       "aim_bone":"bone_turret",
       "muzzle_bone":"socket_muzzle"
-    }
+    },
+	{
+      "spec_id":"/pa/units/land/tank_heavy_armor/tank_heavy_armor_flame_tool_weapon.json",
+      "aim_bone":"bone_turret",
+      "muzzle_bone":"socket_muzzle"
+	}
   ],
   "events":{
     "build_complete":{
       "audio_cue":"/SE/Build_Complete/veh"
     },
-    "fired":{
-      "audio_cue":"",
-      "effect_spec":""
+    "fired": {
+      "audio_cue": "/SE/Weapons/veh/tank_flame",
+      "effect_spec": "/pa/units/land/tank_heavy_armor/tank_heavy_armor_muzzle_flame.pfx"
     },
     "died":{
       "audio_cue":"/SE/Death/Veh",

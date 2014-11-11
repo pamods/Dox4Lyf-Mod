@@ -5,7 +5,7 @@
   "spawn_layers":"WL_Air",
   "physics":{
     "type":"Projectile",
-    "radius":1,
+    "radius":2,
     "push_class":1,
     "gravity_scalar":3,
     "add_to_spatial_db":false,

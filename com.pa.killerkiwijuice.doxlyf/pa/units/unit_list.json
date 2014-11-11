@@ -88,6 +88,7 @@
       "/pa/units/orbital/base_orbital_structure/base_orbital_structure.json",
       "/pa/units/orbital/deep_space_radar/deep_space_radar.json",
       "/pa/units/orbital/orbital_launcher/orbital_launcher.json",
-      "/pa/units/orbital/radar_satellite/radar_satellite.json"
+      "/pa/units/orbital/radar_satellite/radar_satellite.json",
+	  "/pa/units/orbital/orbital_fighter/orbital_fighter.json"
    ]
 }

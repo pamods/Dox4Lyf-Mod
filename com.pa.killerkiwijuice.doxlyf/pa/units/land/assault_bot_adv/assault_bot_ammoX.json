@@ -1,5 +1,5 @@
 { "base_spec" : "/pa/ammo/base_bullet/base_bulletX.json",
-  "damage" : 15,
+  "damage" : 20,
   "fx_trail" : { "filename" : "/pa/effects/specs/bullet_proj_trailX.pfx",
       "offset" : [ 0.0,
           0.0,
@@ -10,6 +10,6 @@
   "lifetime" : 2,
   "max_velocity" : 400.0,
   "model" : null,
-  "splash_damage" : 4,
+  "splash_damage" : 6,
   "splash_radius" : 8
 }

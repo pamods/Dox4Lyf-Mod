@@ -1,9 +1,9 @@
 {
   "base_spec":"/pa/units/land/base_structure/base_structure.json",
-  "display_name":"Advanced Vehicle Factory",
-  "description":"Builds fabricators, Giant Dox, and Dox Shellers.",
+  "display_name":"Advanced Weaponry Factory",
+  "description":"Builds fabricators, Giant Dox, Borv, and Dox Shellers.",
   "max_health":30000,
-  "build_metal_cost":4800,
+  "build_metal_cost":4300,
   "atrophy_rate":80.0,
   "atrophy_cool_down":15.0,
   "buildable_types":"Mobile & Tank & FactoryBuild",
@@ -27,7 +27,8 @@
     "UNITTYPE_Land",
     "UNITTYPE_Tank",
     "UNITTYPE_Structure",
-    "UNITTYPE_Advanced"
+    "UNITTYPE_Advanced",
+	"UNITTYPE_Important"
   ],
   "command_caps":[
     "ORDER_Move",
