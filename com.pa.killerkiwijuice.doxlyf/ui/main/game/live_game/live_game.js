@@ -3187,10 +3187,12 @@ $(document).ready(function () {
         // nuke hack
         // the projectiles are not magically added to the unit_list, so the display details aren't sent to the ui
 
+        var tac_nuke_id = '/pa/units/land/nuke_launcher/nuke_launcher_tac_ammo.json';
         var nuke_id = '/pa/units/land/nuke_launcher/nuke_launcher_ammo.json';
         var anti_nuke_id = '/pa/units/land/anti_nuke_launcher/anti_nuke_launcher_ammo.json';
-
-        model.itemDetails[nuke_id] = new UnitDetailModel({ name: 'Doxstroyer', description: 'Long range dox missile - high damage high cost',  cost: 41000, sicon: siconFor(nuke_id) });
+        
+        model.itemDetails[tac_nuke_id] = new UnitDetailModel({ name: 'H1PP0', description: 'Long range dox missile - High damage, low AOE',  cost: 9500, sicon: siconFor(tac_nuke_id) });
+        model.itemDetails[nuke_id] = new UnitDetailModel({ name: 'Doxstroyer', description: 'Long range dox warhead - high damage high cost',  cost: 41000, sicon: siconFor(nuke_id) });
         model.itemDetails[anti_nuke_id] = new UnitDetailModel({ name: 'SR-24 -Shield- Dox Defense', description: 'Anti-dox - Intercepts incoming nuclear dox missiles.', cost: 8750, sicon: siconFor(anti_nuke_id) });
     };
 

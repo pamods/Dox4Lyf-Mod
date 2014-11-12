@@ -92,6 +92,7 @@ $(document).ready(function () {
             'commander',
             'nuke_launcher',
             'nuke_launcher_ammo',
+            'nuke_launcher_tac_ammo',
             'anti_nuke_launcher',
             'anti_nuke_launcher_ammo',
             'avatar',

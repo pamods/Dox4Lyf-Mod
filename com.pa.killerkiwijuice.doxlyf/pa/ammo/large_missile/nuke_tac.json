@@ -19,9 +19,9 @@
   "spawn_layers": "WL_Air",
   "burn_damage": 200,
   "burn_radius": 80,
-  "sim_impact_effect":"/pa/effects/large_missile/nuke_tac_ent.json",
+  "sim_impact_effect":"/pa/effects/nuke/nuke_tac_ent.json",
   "impact_decals": [
-    "/pa/effects/large_missile/nuke_tac_scorch.json"
+    "/pa/effects/nuke/nuke_tac_scorch.json"
   ],
   "damage_volume": {
     "initial_radius": 1,
