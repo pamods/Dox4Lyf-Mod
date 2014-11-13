@@ -4,7 +4,7 @@
     "display_name": "Dox4Lyf Mod",
     "description": "Dox are love, dox are life. Annihilate your foes with giant dox and dox cannons",
     "author": "KillerKiwiJuice",
-    "version": "1.3.1",
+    "version": "1.3",
     "build": "74525",
     "date": "2014/11/10",
     "signature": "not yet implemented",
@@ -14,8 +14,8 @@
     ],
     "forum": "https://forums.uberent.com/threads/rel-dox4lyf-mod.65833/",
     "icon": "http://i.imgur.com/oZCC6xA.png",
-    "enabled": true
+    "enabled": true,
     "dependencies": [
-      "com.pa.doxlyf.ui"
-  ]   
+        "com.pa.doxlyf.ui"
+  ]  
 }
