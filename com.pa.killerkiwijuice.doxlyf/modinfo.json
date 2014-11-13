@@ -13,6 +13,9 @@
         "server-mod"
     ],
     "forum": "https://forums.uberent.com/threads/rel-dox4lyf-mod.65833/",
-    "icon": "http://i.imgur.com/wxgo2uw.png",
+    "icon": "http://i.imgur.com/oZCC6xA.png",
     "enabled": true
+  "dependencies": [
+    "com.pa.doxlyf.ui"
+  ]   
 }
