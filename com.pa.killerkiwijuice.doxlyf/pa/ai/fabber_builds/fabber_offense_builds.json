@@ -225,6 +225,61 @@
           "value":50
         }
       }
-    }
+    },
+    {
+      "name":"Experimental Dox",
+      "to_build":"ExperimentalDox",
+      "instance_count":-1,
+      "min_num_assisters":4,
+      "max_num_assisters":7,
+      "priority":560,
+      "builders":[
+        "AnyAdvancedBotCombatFabber"
+      ],
+      "build_conditions":[
+        [
+          {
+            "test_type":"AloneOnPlanet",
+            "boolean":false
+          },
+          {
+            "test_type":"CanAffordBuildDemand"
+          },
+          {
+            "test_type":"UnitCountInBase",
+            "compare0":"<",
+            "value0":1
+          },
+          {
+            "test_type":"CanFindPlaceToBuild",
+            "string0":"ExperimentalDox"
+          },
+		  {
+			"test_type":"UnitCountOnPlanet",
+			"unit_type_string0":"Structure & Teleporter",
+			"compare0":">",
+			"value0":0
+		  }		  
+        ]
+      ],
+      "placement_rules":{
+        "buffer":2,
+        "placement_type":"FromMainBaseCenter",
+        "unit_count_rules":[
+          {
+            "unit_type_string":"Structure",
+            "alliance":"Enemy",
+            "compare_type":">=",
+            "count":5
+          }
+        ],
+        "threat":{
+          "influence_type":"AntiSurface",
+          "compare_type":"<",
+          "radius":10,
+          "value":50
+        }
+      }
+    }	
   ]
 }

@@ -54,6 +54,7 @@
 
       "/pa/units/land/assault_bot/assault_bot.json",
 	  "/pa/units/land/assault_bot_adv/assault_bot_adv.json",
+	  "/pa/units/land/assault_bot_t3/assault_bot_t3.json",
 
       "/pa/units/land/bot_factory/bot_factory.json",
 	  "/pa/units/land/tank_heavy_armor/tank_heavy_armor.json",

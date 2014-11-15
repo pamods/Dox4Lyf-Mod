@@ -49,6 +49,7 @@ $(document).ready(function () {
             'unit_air_generic_adv',
             'unit_air_generic',
             'air_scout',
+            'assault_bot_t3',
             'assault_bot_adv',
             'assault_bot',
             'bot_artillery_adv',

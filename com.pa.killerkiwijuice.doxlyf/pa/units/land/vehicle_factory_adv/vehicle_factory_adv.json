@@ -1,12 +1,12 @@
 {
   "base_spec":"/pa/units/land/base_structure/base_structure.json",
   "display_name":"Advanced Weaponry Factory",
-  "description":"Builds fabricators, Giant Dox, Borv, and Dox Shellers.",
+  "description":"Builds fabricators, Giant Dox, Borv, Adv Combat Bots and Dox Shellers.",
   "max_health":30000,
   "build_metal_cost":4300,
   "atrophy_rate":80.0,
   "atrophy_cool_down":15.0,
-  "buildable_types":"Mobile & Tank & FactoryBuild",
+  "buildable_types":"Mobile & Tank & FactoryBuild | Bot & Advanced & Construction",
   "rolloff_dirs":[
     [
       0,

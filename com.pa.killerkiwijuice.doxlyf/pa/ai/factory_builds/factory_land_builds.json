@@ -189,7 +189,7 @@
       "to_build":"AdvancedArmorTank",
       "instance_count":-1,
       "max_num_assisters":5,
-      "priority":199,
+      "priority":200,
       "builders":[
         "AdvancedVehicleFactory"
       ],
@@ -228,7 +228,7 @@
 	"to_build":"AdvancedAssaultBot",
 	"instance_count":-1,
 	"max_num_assisters":15,
-	"priority":199,
+	"priority":300,
 	"builders":[
 		"AdvancedVehicleFactory"
 	  ],
@@ -268,7 +268,7 @@
       "to_build":"AdvancedArtilleryVehicle",
       "instance_count":-1,
       "max_num_assisters":5,
-      "priority":200,
+      "priority":150,
       "builders":[
         "AdvancedVehicleFactory"
       ],

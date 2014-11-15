@@ -18,6 +18,9 @@
     "BoomBot":{
       "spec_id":"/pa/units/land/bot_bomb/bot_bomb.json"
     },
+	"ExperimentalDox":{
+	  "spec_id": "/pa/units/land/assault_bot_t3/assault_bot_t3.json"
+	},
     "BasicBotFabber":{
       "spec_id":"/pa/units/land/fabrication_bot/fabrication_bot.json"
     },
@@ -242,6 +245,9 @@
     },
     "NukeMissile":{
       "spec_id":"/pa/units/land/nuke_launcher/nuke_launcher_ammo.json"
+    },
+    "TacNukeMissile":{
+      "spec_id":"/pa/units/land/nuke_launcher/nuke_launcher_tac_ammo.json"
     },
     "AntiNukeMissile":{
       "spec_id":"/pa/units/land/anti_nuke_launcher/anti_nuke_launcher_ammo.json"
