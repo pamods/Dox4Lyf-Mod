@@ -19,6 +19,14 @@
   "build_metal_cost" : 24300,
   "description" : "Thick plated armor, a laser and flamethrower make this the most deadly mobile unit on the battlefield.",
   "display_name" : "Experimental Uber Dox",
+  "command_caps":[
+    "ORDER_Move",
+    "ORDER_Patrol",
+    "ORDER_Attack",
+    "ORDER_Assist",
+    "ORDER_Use",
+    "ORDER_FireSecondaryWeapon"
+  ],
   "events" : { "build_complete" : { "audio_cue" : "/SE/Build_Complete/bot",
           "effect_scale" : 5
         },
@@ -36,8 +44,8 @@
 		}
     },
   "guard_layer" : "WL_AnySurface",
-  "guard_radius" : 75,
-  "max_health" : 9600,
+  "guard_radius" : 95,
+  "max_health" : 10600,
   "mesh_bounds" : [ 20,
       10,
       20
@@ -79,10 +87,17 @@
         "aim_bone":"bone_root",
         "muzzle_bone":"bone_root",
         "show_range":false
-      },	  
+      },
+      {
+        "spec_id":"/pa/tools/uber_cannon/uber_cannon.json",
+        "aim_bone":"bone_turret",
+        "muzzle_bone":"socket_leftMuzzle",
+        "secondary_weapon":true,
+        "show_range":false
+      },  
 	  { "aim_bone" : "socket_aim",
         "muzzle_bone" : "socket_leftMuzzle",
-        "spec_id" : "/pa/units/land/assault_bot_adv/assault_bot_tool_weaponX.json"
+        "spec_id" : "/pa/units/land/assault_bot_adv/assault_bot_tool_weaponXL.json"
       }
     ],
   "transportable" : { "size" : 1 },

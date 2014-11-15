@@ -100,8 +100,8 @@
     }
   ],
   "death_weapon":{
-    "ground_ammo_spec":"/pa/ammo/nuke_pbaoe/nuke_pbaoe.json",
-    "air_ammo_spec":"/pa/ammo/nuke_pbaoe/nuke_pbaoe.json",
+    "ground_ammo_spec":"/pa/ammo/nuke_pbaoe/nuke_pbaoeX.json",
+    "air_ammo_spec":"/pa/ammo/nuke_pbaoe/nuke_pbaoeX.json",
     "air_height_threshold":100
   },
   "events":{
