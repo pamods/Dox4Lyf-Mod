@@ -3,7 +3,7 @@
     "damage": 2000,
     "splash_radius": 110,
     "full_damage_splash_radius": 20,
-    "splash_damages_allies": true,
+    "splash_damages_allies": false,
     "sim_fire_effect": "/pa/effects/nuke/nuke_tac_ent.json",
     "impact_decals": [
         "/pa/effects/specs/nuke_scorch_01.json"
