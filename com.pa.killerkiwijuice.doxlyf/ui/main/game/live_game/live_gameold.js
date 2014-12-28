@@ -560,10 +560,6 @@ $(document).ready(function () {
         self.mode = ko.observable('default');
         self.serverMode = ko.observable();
         self.paused = ko.observable(false);
-        self.ranked = ko.observable(false);
-        self.ranked.subscribe(function(newRankedValue) {
-            api.panels.game_paused_panel && api.panels.game_paused_panel.message('ranked', newRankedValue);
-        });
 
         self.allowCustomFormations = ko.observable(false);
         self.toggleCustomFormations = function () { self.allowCustomFormations(!self.allowCustomFormations()); };
@@ -693,26 +689,16 @@ $(document).ready(function () {
         });
 
         self.showSettings = ko.observable(false);
-        self.showPlayerGuide = ko.observable(false);
-        self.toggleShowPlayerGuide = function () {
-            self.showPlayerGuide(!self.showPlayerGuide());
-        };
-
-        var refreshPanel = function (name, visible) {
-            engine.call("game.allowKeyboard", !visible);
-            if (visible) 
-                api.panels[name] && api.panels[name].focus();
-            else 
-                api.Holodeck.refreshSettings();
-            
-            _.delay(api.panels[name].update);
-        };
-
         self.showSettings.subscribe(function() {
-            refreshPanel('settings', self.showSettings());
-        });
-        self.showPlayerGuide.subscribe(function () {
-            refreshPanel('player_guide', self.showPlayerGuide());
+            var show = self.showSettings();
+            engine.call("game.allowKeyboard", !show);
+            if (show) {
+                api.panels.settings && api.panels.settings.focus();
+            }
+            else {
+                api.Holodeck.refreshSettings();
+            }
+            _.delay(api.panels.settings.update);
         });
 
         // Sandbox
@@ -1444,30 +1430,11 @@ $(document).ready(function () {
         };
 
         self.abandon = function () {
-            var removeDeferred = $.Deferred();
-            $.when(self.haveUberNet() && api.net.removePlayerFromGame()).always(removeDeferred.resolve);
-
-            if (self.serverMode() !== 'replay') {
-                var surrenderDeferred = $.Deferred();
-                api.select.commander().always(function () {
-                    api.camera.track(true);
-                    self.send_message("surrender", {}, function() {
-                        surrenderDeferred.resolve();
-                    });
-                });
-
-                // Make sure this promise is fulfilled in at least 3 seconds.
-                _.delay(function() {
-                    // Calling reject() after resolve() leaves the promise as resolved,
-                    // *not* rejected, and fail() callbacks are not called. This is
-                    // intended & documented. That makes this fine to do unconditionally.
-                    surrenderDeferred.reject();
-                }, 3000);
-
-                return $.when(removeDeferred, surrenderDeferred);
-            } else {
-                return removeDeferred.promise();
-            }
+            var result = $.Deferred();
+            $.when(self.haveUberNet() && api.net.removePlayerFromGame()).always(function() {
+                result.resolve();
+            });
+            return result.promise();
         }
 
         self.navToGameOptions = function () {
@@ -1483,9 +1450,10 @@ $(document).ready(function () {
             engine.call('pop_mouse_constraint_flag');
             engine.call("game.allowKeyboard", true);
 
-            self.abandon().always(function () {
-                self.userTriggeredDisconnect(true);
-                self.disconnect();
+            self.userTriggeredDisconnect(true);
+            self.disconnect();
+
+            self.abandon().then(function () {
                 window.location.href = self.mainMenuUrl();
             });
         }
@@ -1505,9 +1473,9 @@ $(document).ready(function () {
             engine.call('pop_mouse_constraint_flag');
             engine.call("game.allowKeyboard", true);
 
-            self.abandon().always(function() {
-                self.userTriggeredDisconnect(true);
-                self.disconnect();
+            self.userTriggeredDisconnect(true);
+            self.disconnect();
+            self.abandon().then(function() {
                 self.exit();
             });
         }
@@ -1887,10 +1855,6 @@ $(document).ready(function () {
             self.pauseSim();
             self.closeMenu();
         };
-        self.menuTogglePlayerGuide = function () {
-            self.toggleShowPlayerGuide();
-            self.closeMenu();
-        };
         self.menuToggleChronoCam = function() {
             self.showTimeControls(!self.showTimeControls());
             self.closeMenu();
@@ -1899,24 +1863,6 @@ $(document).ready(function () {
             self.showSettings(true);
             self.closeMenu();
         };
-        self.menuSurrender = function() {
-            self.popUp({ message: loc('!LOC(live_game:surrender_game.message):Surrender Game?') }).then(function (result) {
-                if (result === 0) {
-                    self.closeMenu();
-
-                    // Abandoning should take you to the game_over state, but if it fails (times out), we disconnect
-                    // and move you to the main menu. It's probably happening because the server is hanging.
-                    self.abandon().fail(function () {
-                        engine.call('pop_mouse_constraint_flag');
-                        engine.call("game.allowKeyboard", true);
-
-                        self.userTriggeredDisconnect(true);
-                        self.disconnect();
-                        window.location.href = self.mainMenuUrl();
-                    });
-                }
-            });
-        };
         self.menuMainMenu = function() {
             self.popUp({ message: loc('!LOC(live_game:quit_to_main_menu.message):Quit to Main Menu?') }).then(function (result) {
                 if (result === 0)
@@ -1924,7 +1870,7 @@ $(document).ready(function () {
             });
         };
         self.menuExit = function() {
-            self.popUp({ message: loc('!LOC(live_game:surrender_and_exit_to_desktop.message):Surrender and exit to Desktop?') }).then(function (result) {
+            self.popUp({ message: loc('!LOC(live_game:quit_and_exit_to_desktop.message):Quit and exit to Desktop?') }).then(function (result) {
                 if (result === 0)
                     self.exitGame();
             });
@@ -1940,55 +1886,29 @@ $(document).ready(function () {
             });
         };
 
-        self.menuAction = function (action) { self[action](); };
-
-        /* affected by gw live_game_patch. check patch before changing. */
-        self.menuConfig = ko.computed(function() {
-            var list = [];
-
-            if (!self.ranked()) {
-                list.push({
-                    label: loc('!LOC(live_game:pause_game.message):Pause Game'),
-                    action: 'menuPauseGame'
-                });
-            }
-
-            list.push({
-                label: 'Player Guide',
-                action: 'menuTogglePlayerGuide'
-            });
-
-            list.push({
+        self.menuAction = function(action) { self[action](); };
+        self.menuConfig = ko.observableArray([
+            {
+                label: loc('!LOC(live_game:pause_game.message):Pause Game'),
+                action: 'menuPauseGame'
+            },
+            {
                 label: loc('!LOC(live_game:chrono_cam.message):Chrono Cam'),
                 action: 'menuToggleChronoCam'
-            });
-
-            list.push({
+            },
+            {
                 label: loc('!LOC(live_game:game_settings.message):Game Settings'),
                 action: 'menuSettings'
-            });
-
-            if (self.isSpectator() || self.serverMode() === 'replay') {
-                list.push({
-                    label: loc('!LOC(live_game:main_menu.message):Main Menu'),
-                    action: 'menuMainMenu',
-                });
-            } else {
-                list.push({
-                    label: loc('!LOC(live_game:surrender.message):Surrender'),
-                    action: 'menuSurrender',
-                });
+            },
+            {
+                label: loc('!LOC(live_game:main_menu.message):Main Menu'),
+                action: 'menuMainMenu',
+            },
+            {
+                label: loc('!LOC(live_game:quit.message):Quit'),
+                action: 'menuExit'
             }
-
-            if (!self.ranked()) {
-                list.push({
-                    label: loc('!LOC(live_game:quit.message):Quit'),
-                    action: 'menuExit'
-                });
-            }
-
-            return list;
-        });
+        ]);
         ko.computed(function() {
             api.panels.menu && api.panels.menu.query('state', self.menuConfig()).then(api.panels.menu.update());
         });
@@ -3000,15 +2920,10 @@ $(document).ready(function () {
             case 'landing':
                 if (client.landing_position || model.isSpectator()) {
                     model.landingOk();
-                    model.setMessage({
-                        message: loc('!LOC(live_game:waiting_for_other_players_to_select_a_spawn_location.message):Waiting for other players to select a spawn location.')
-                    });
+                    model.setMessage(loc('!LOC(live_game:waiting_for_other_players_to_select_a_spawn_location.message):Waiting for other players to select a spawn location.'));
+                } else {
+                    model.setMessage(loc("!LOC(live_game:pick_a_location_inside_one_of_the_green_zones_to_spawn_your_commander.message):Pick a location inside one of the green zones to spawn your Commander."));
                 }
-                else
-                    model.setMessage({
-                        message: loc("!LOC(live_game:pick_a_location_inside_one_of_the_green_zones_to_spawn_your_commander.message):Pick a location inside one of the green zones to spawn your Commander."),
-                        helper: true
-                    });
                 break;
             default: /* do nothing */ break;
         }
@@ -3073,11 +2988,6 @@ $(document).ready(function () {
 
                 handlers.army_state(msg.data.armies);
             }
-
-            if (msg.data.ranked)
-                model.ranked(msg.data.ranked);
-            else
-                model.ranked(false);
 
             if (msg.data.client)
                 handlers.client_state(msg.data.client);
@@ -3460,17 +3370,12 @@ $(document).ready(function () {
         engine.call("game.allowKeyboard", true);
 
         if (payload.disconnect) {
-            var navAway = function() {
+            model.abandon().then(function () {
                 model.userTriggeredDisconnect(true);
                 model.disconnect();
 
                 window.location.href = payload.url;
-            };
-
-            if (model.haveUberNet())
-                api.net.removePlayerFromGame().always(navAway);
-            else
-                navAway();
+            });
         }
         else
             window.location.href = payload.url;
@@ -3563,14 +3468,6 @@ $(document).ready(function () {
 
     handlers['settings.exit'] = function() {
         model.showSettings(false);
-    };
-
-    handlers['guide.hide'] = function () {
-        model.showPlayerGuide(false);
-    };
-
-    handlers['guide.show'] = function () {
-        model.showPlayerGuide(true);
     };
 
     handlers['query.item_details'] = function(query) {
