@@ -80,7 +80,7 @@
                 "radius" : 170,
                 "shape" : "capsule"
               } ] } },
-  "tools" : [ { "aim_bone" : "socket_aim",
+  "tools" : [ { "aim_bone" : "bone_turret",
         "muzzle_bone" : "socket_rightMuzzle",
         "spec_id" : "/pa/units/commanders/base_commander/base_commander_tool_flamethrowerX.json"
       },
@@ -98,7 +98,43 @@
       },  
 	  { "aim_bone" : "socket_aim",
         "muzzle_bone" : "socket_leftMuzzle",
-        "spec_id" : "/pa/units/land/assault_bot_adv/assault_bot_tool_weaponXL.json"
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
+      },
+	  { "aim_bone" : "socket_aim",
+        "muzzle_bone" : "socket_leftMuzzle",
+        "spec_id" : "/pa/units/land/assault_bot_t3/electric_shotgun_tool.json"
       }
     ],
   "transportable" : { "size" : 1 },
