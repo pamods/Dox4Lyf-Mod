@@ -1,0 +1,19 @@
+{
+    "base_spec": "/pa/ammo/base_beam/base_beam.json",
+    "damage": 1250,
+    "splash_damage": 200,
+    "splash_radius": 70,
+    "full_damage_splash_radius": 10,
+    "collision_check": "target",
+	"burn_damage" : 200,
+	"burn_radius" : 137,
+    "fx_beam_spec": "/pa/units/land/tesla_dox/tesla_ammo_beam.pfx",
+    "damage_volume": {
+        "burnable_remove_radius": 100,
+        "delay": 0,
+        "initial_radius": 20,
+        "radius_accel": 100,
+        "radius_velocity": 50
+    },
+    "fx_collision_spec": "/pa/units/land/tesla_dox/tesla_ammo_beam_hit.pfx"
+}
