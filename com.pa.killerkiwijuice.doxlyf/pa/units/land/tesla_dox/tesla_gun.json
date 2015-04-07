@@ -1,11 +1,7 @@
 {
     "base_spec": "/pa/tools/base_laser_turret/base_laser_turret.json",
     "ammo_id": "/pa/units/land/tesla_dox/tesla_ammo.json",
-    "ammo_source": "energy",
-    "rate_of_fire": 0.25,
-    "ammo_capacity": 12000,
-    "ammo_demand": 6000,
-    "ammo_per_shot": 12000,
+    "rate_of_fire": 100,
     "max_range": 250,
     "yaw_rate": 40,
     "pitch_rate": 7200,
@@ -17,12 +13,5 @@
         "WL_LandHorizontal",
         "WL_WaterSurface",
         "WL_Seafloor"
-    ],
-    "target_priorities": [
-        "Structure - Wall",
-        "Land - Wall",
-        "Naval",
-        "Wall",
-        "Air"
     ]
 }
