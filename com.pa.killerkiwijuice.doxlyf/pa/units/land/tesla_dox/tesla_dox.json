@@ -28,8 +28,8 @@
         }
     },
     "base_spec": "/pa/units/land/base_bot/base_bot.json",
-    "build_metal_cost": 24000,
-    "description": "The Tesla Dox is an electrified super unit that will decimate any unit with it's powerful lightning Tesla arcs",
+    "build_metal_cost": 30000,
+    "description": "The Tesla Dox is an electrified super unit that will decimate any unit from range with it's powerful lightning Tesla arcs. Vulnerable to Vanguards.",
     "display_name": "Flying Armored Lightning Cannon",
     "command_caps": [
         "ORDER_Move",
