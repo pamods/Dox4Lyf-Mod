@@ -94,6 +94,8 @@
       "/pa/units/land/unit_cannon/unit_cannon.json",
 	  "/pa/units/land/anti_nuke_launcher/anti_nuke_launcher.json",
 	  "/pa/units/land/nuke_launcher/nuke_launcher.json",
+	  "/pa/units/land/laser_defense_single/laser_defense_single.json",
+
 
       "/pa/units/orbital/base_orbital/base_orbital.json",
       "/pa/units/orbital/base_orbital_structure/base_orbital_structure.json",

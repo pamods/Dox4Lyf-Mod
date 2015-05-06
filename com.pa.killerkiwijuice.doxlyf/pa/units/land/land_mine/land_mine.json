@@ -2,7 +2,7 @@
   "display_name":"Land Mine",
   "description":"Land mine -Detonates a high damage, low aoe blast. Completely invisible to enemy radar.",
   "strategic_icon_priority":3,
-  "max_health":2000,
+  "max_health":10,
   "build_metal_cost":45,
   "atrophy_rate":25,
   "atrophy_cool_down":1,
@@ -27,7 +27,7 @@
   "recon":{
     "observable":{
       "layer":"surface_and_air",
-      "ignore_sight":false,
+      "ignore_sight":true,
       "ignore_radar":true
     },
     "observer":{
