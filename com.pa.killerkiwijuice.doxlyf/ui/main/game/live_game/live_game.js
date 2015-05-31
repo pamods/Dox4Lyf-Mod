@@ -90,6 +90,7 @@ $(document).ready(function () {
         self.isHover = ko.observable(false);
 
         self.index = ko.observable(object.index);
+        self.id = ko.observable(object.id);
         self.thrust_control = ko.observable(object.thrust_control);
         self.collisionImminent = ko.observable(object.collision_imminent);
         self.weapon_control = ko.observable(object.weapon_control);
@@ -505,6 +506,7 @@ $(document).ready(function () {
         self.dynamic_alliances = ko.observable(object && object.dynamic_alliances ? object.dynamic_alliances : false);
         self.dynamic_alliance_victory = ko.observable(object && object.dynamic_alliance_victory ? object.dynamic_alliance_victory : false);
         self.land_anywhere = ko.observable(!!(object && object.land_anywhere));
+        self.sandbox = ko.observable(!!(object && object.sandbox));
 
         self.isFFA = ko.computed(function () { return self.game_type() === 'FreeForAll' });
         self.isTeamArmy = ko.computed(function () { return self.game_type() === 'TeamArmies' });
@@ -528,6 +530,9 @@ $(document).ready(function () {
             api.Panel.update();
             return api.panels.popup.query('show', {
                 messages: messages,
+                textfield: params.textfield,
+                filename: params.filename,
+                defaultText: params.defaultText,
                 buttons: buttons
             }).then(function(result) {
                 self.showPopUp(false);
@@ -560,6 +565,16 @@ $(document).ready(function () {
         self.mode = ko.observable('default');
         self.serverMode = ko.observable();
         self.paused = ko.observable(false);
+        self.restart = ko.observable(false);
+        self.viewReplay = ko.observable(false);
+        self.malformed = ko.observable(false);
+        self.showPause = ko.computed(function () {
+            if (self.viewReplay())
+                return false;
+
+            return self.paused() || self.restart();
+        });
+
         self.ranked = ko.observable(false);
         self.ranked.subscribe(function(newRankedValue) {
             api.panels.game_paused_panel && api.panels.game_paused_panel.message('ranked', newRankedValue);
@@ -589,6 +604,9 @@ $(document).ready(function () {
         self.forceResumeAfterReview = ko.observable(false);
 
         self.players = ko.observableArray();
+        self.singleHumanPlayer = ko.computed(function(){
+            return _.reject(self.players(), 'ai').length === 1;
+        });
         self.playerData = ko.computed(function () {
             return {
                 colors: _.pluck(self.players(), 'color'),
@@ -627,11 +645,17 @@ $(document).ready(function () {
             }
             return player;
         });
+        self.playerWasInTeam = ko.observable(false);
         self.playerInTeam = ko.computed(function () {
             if (!self.player() || !self.player().allies || !self.player().slots)
                 return false;
 
-            return !!self.player().allies.length || self.player().slots.length > 1;
+            var result = !!self.player().allies.length || self.player().slots.length > 1
+
+            if (result)
+                self.playerWasInTeam(true)
+
+            return result;
         });
 
         self.playerName = ko.observable(self.player().name || '');
@@ -642,6 +666,15 @@ $(document).ready(function () {
 
         self.gameOver = ko.observable(false);
         self.showGameOver = ko.observable(false);
+
+
+        /* called from game_over scene */
+        self.signalShowGameOver = function (value) {
+            if (self.gameOver()) { /* gameOver = false indicates that we just used ChronoResume */
+                self.showGameOver(value);
+            }
+        };
+
         self.showDefeatPending = ko.observable(false);
         self.showGameOver.subscribe(function (value) {
             self.showDefeatPending(false);
@@ -653,7 +686,7 @@ $(document).ready(function () {
             var base = self.baseGameOverState();
             return _.assign({}, base, {
                 record: self.recordGameOver(),
-                team: self.playerInTeam()
+                team: self.playerWasInTeam()
             });
         });
         self.gameOverDelay = ko.observable(14 * 1000 /* in ms */);
@@ -670,7 +703,8 @@ $(document).ready(function () {
         self.showDefeat = function () {
             self.baseGameOverState({
                 defeated: true,
-                auto_show: true
+                auto_show: true,
+                always_spectating: self.playerWasAlwaysSpectating(),
             });
             delayShowGameOver();
             self.gamestatsPanelIsOpen(false);
@@ -681,6 +715,7 @@ $(document).ready(function () {
 
             self.baseGameOverState({
                 game_over: true,
+                always_spectating: self.playerWasAlwaysSpectating(),
                 defeated: self.originalArmyIndexDefeated(),
                 open: self.showGameOver() || self.showDefeatPending(),
                 auto_show: !(self.gamestatsPanelIsOpen() || self.showTimeControls()),
@@ -700,19 +735,25 @@ $(document).ready(function () {
 
         var refreshPanel = function (name, visible) {
             engine.call("game.allowKeyboard", !visible);
-            if (visible) 
+            if (visible)
                 api.panels[name] && api.panels[name].focus();
-            else 
+            else
                 api.Holodeck.refreshSettings();
-            
+
             _.delay(api.panels[name].update);
         };
 
         self.showSettings.subscribe(function() {
             refreshPanel('settings', self.showSettings());
+
+            if (self.showSettings() && self.singleHumanPlayer())
+                self.pauseSim();
         });
         self.showPlayerGuide.subscribe(function () {
             refreshPanel('player_guide', self.showPlayerGuide());
+
+             if (self.showPlayerGuide() && self.singleHumanPlayer())
+                self.pauseSim();
         });
 
         // Sandbox
@@ -761,7 +802,6 @@ $(document).ready(function () {
 
         self.chatSelected = ko.observable(false);
         self.teamChat = ko.observable(false);
-        self.twitchChat = ko.observable(false);
 
         self.defeated = ko.computed(function () {
             if (!self.player())
@@ -790,25 +830,29 @@ $(document).ready(function () {
         });
 
         self.showAllAvailableVisionFlags = ko.observable(false);
-        self.visionSelectAll = function () {
+        self.visionSelectAll = function (from_server) {
             var i;
             var flags = [];
 
+            var prev = _.clone(self.playerVisionFlags());
+
             for (i = 0; i < self.players().length; i++)
-                flags.push(self.availableVisionFlags()[i] ? 1 : 0);
+                flags.push(1);
 
             self.playerVisionFlags([]);
             self.playerVisionFlags(flags);
             self.showAllAvailableVisionFlags(true);
 
-            engine.call('game.updateObservableArmySet', flags);
+            if (!_.isEqual(prev, self.playerVisionFlags()) && !from_server) {
+                self.send_message('change_vision_flags', { 'vision_flags': flags });
+                engine.call('vision.setVisionMask', JSON.stringify(flags));
+            }
         };
         self.visionSelect = function (index, event) {
             var flags = [];
             var i;
 
-            if (!self.availableVisionFlags()[index])
-                return;
+            var prev = _.clone(self.playerVisionFlags());
 
             for (i = 0; i < self.players().length; i++) {
                 // If the shift key is held down add the player to the list of visible armies.
@@ -825,7 +869,10 @@ $(document).ready(function () {
             self.playerVisionFlags(flags);
             self.showAllAvailableVisionFlags(false);
 
-            engine.call('game.updateObservableArmySet', flags);
+            if (!_.isEqual(prev, self.playerVisionFlags())) {
+                self.send_message('change_vision_flags', { 'vision_flags': flags });
+                engine.call('vision.setVisionMask', JSON.stringify(flags));
+            }
         };
 
         self.playerVisionFlags = ko.observableArray([]);
@@ -854,8 +901,6 @@ $(document).ready(function () {
 
         self.controlSingleArmy = function () {
             var i;
-            var v_flags = [];
-            var c_flags = [];
             var armies = self.players();
             var isPlayerArmy;
 
@@ -863,9 +908,6 @@ $(document).ready(function () {
                 isPlayerArmy = (self.armyId() === armies[i].id);
                 self.playerVisionFlags()[i] = isPlayerArmy;
                 self.playerControlFlags()[i] = isPlayerArmy;
-
-                v_flags.push(isPlayerArmy ? 1 : 0);
-                c_flags.push(isPlayerArmy ? 1 : 0);
             }
 
             self.playerVisionFlags.notifySubscribers();
@@ -873,9 +915,6 @@ $(document).ready(function () {
 
             self.send_message('change_control_flags', { 'control_flags': self.playerControlFlags() });
             self.send_message('change_vision_flags', { 'vision_flags': self.playerVisionFlags() });
-
-            engine.call('game.updateControlableArmySet', c_flags);
-            engine.call('game.updateObservableArmySet', v_flags);
         }
 
         self.originalArmyIndex = ko.observable();
@@ -902,6 +941,11 @@ $(document).ready(function () {
             var player = self.players()[index];
 
             return player.defeated;
+        });
+
+        self.playerWasAlwaysSpectating = ko.computed(function () {
+            var index = self.originalArmyIndex();
+            return (_.isUndefined(index) || index === -1);
         });
 
         self.observerModeCalledOnce = ko.observable(false);
@@ -936,9 +980,6 @@ $(document).ready(function () {
             self.send_message('change_control_flags', { 'control_flags': self.playerControlFlags() });
             self.send_message('change_vision_flags', { 'vision_flags': self.playerVisionFlags() });
 
-            engine.call('game.updateControlableArmySet', c_flags);
-            engine.call('game.updateObservableArmySet', v_flags);
-
             self.reviewMode(true);
             self.observerModeCalledOnce(true);
         }
@@ -955,9 +996,14 @@ $(document).ready(function () {
             self.showTimeControls(!self.showTimeControls());
         };
 
-        self.timeBarState = ko.computed(function() {
+        self.timeBarState = ko.computed(function () {
+
+            var require = self.singleHumanPlayer() || self.gameOptions.sandbox();
+            var prevent = self.serverMode() === 'replay' || self.malformed();
+
             return {
-                visible: self.showTimeControls()
+                visible: self.showTimeControls(),
+                showPlayFromHere: require && !prevent
             };
         });
         self.timeBarState.subscribe(function() {
@@ -970,6 +1016,19 @@ $(document).ready(function () {
                 api.time.control();
             }
         };
+        self.viewReplay.subscribe(function (value) {
+            if (value)
+            {
+                self.controlTime(value);
+                self.reviewMode(true);
+                api.time.set(0);
+            }
+            else
+            {
+				self.controlTime(false);
+                self.reviewMode(false);
+            }
+        });
         self.resumeIfNotReview = function () {
             if ((!self.reviewMode()) || self.forceResumeAfterReview()) {
                 api.time.resume();
@@ -986,7 +1045,7 @@ $(document).ready(function () {
 
         self.menuIsOpen = ko.observable(false);
 
-        self.showMenu = ko.computed(function () { return self.menuIsOpen() && !self.showTimeControls() });
+        self.showMenu = ko.computed(function () { return self.menuIsOpen(); });
         self.showSelectionBar = ko.computed(function () {
             return !self.showMenu()
                     && !self.reviewMode()
@@ -1086,8 +1145,11 @@ $(document).ready(function () {
         self.armyCount = ko.observable();
         self.armyId = ko.observable();
         self.isSpectator = ko.computed(function () {
-            return !self.armyId() || self.defeated();
+            return !self.armyId() || self.defeated() || self.viewReplay();
         });
+        self.showControlGroups = function () {
+            return !self.isSpectator();
+        }
         self.squelchNotifications = ko.computed(function () {
             var result = self.isSpectator() || !self.armySize();
 
@@ -1516,6 +1578,10 @@ $(document).ready(function () {
         self.selection = ko.observable(null);
         self.hasSelection = ko.computed(function () { return !!self.selection() && self.selection().spec_ids && !$.isEmptyObject(self.selection().spec_ids) });
 
+        self.hasSelection.subscribe(function (value) {
+            api.panels.control_group_bar.message('has_selection', value);
+        });
+
         self.selectionTypes = ko.observableArray([]);
 
         self.selectedAllMatchingCurrentSelectionOnScreen = function () {
@@ -1565,40 +1631,6 @@ $(document).ready(function () {
             }
         }
 
-        // Twitch Status
-        self.twitchStreaming = ko.observable(false);
-        self.twitchAuthenticated = ko.observable(false);
-        self.twitchMicEnabled = ko.observable(false);
-        self.twitchSoundsEnabled = ko.observable(false);
-
-        self.toggleStreaming = function () {
-            if (self.twitchStreaming()) {
-                api.twitch.disableStreaming();
-            } else {
-                api.twitch.enableStreaming();
-            }
-        };
-
-        self.toggleMicrophone = function () {
-            if (self.twitchMicEnabled()) {
-                api.twitch.disableMicCapture();
-            } else {
-                api.twitch.enableMicCapture();
-            }
-        };
-
-        self.toggleSounds = function () {
-            if (self.twitchSoundsEnabled()) {
-                api.twitch.disablePlaybackCapture();
-            } else {
-                api.twitch.enablePlaybackCapture();
-            }
-        };
-
-        self.runCommercial = function () {
-            api.twitch.runCommercial();
-        }
-
         // Command Bar
         self.build_orders = {};
 
@@ -1643,7 +1675,6 @@ $(document).ready(function () {
 
             self.buildItemMinIndex(0);
 
-            self.selection(null);
             self.cmdIndex(-1);
             self.selectionTypes([]);
 
@@ -1682,6 +1713,8 @@ $(document).ready(function () {
 
             if (!$.isEmptyObject(payload.spec_ids))
                 self.selection(payload);
+            else
+                self.selection(null);
         };
 
         self.actionBarState = ko.computed(function() {
@@ -1899,7 +1932,8 @@ $(document).ready(function () {
             self.showSettings(true);
             self.closeMenu();
         };
-        self.menuSurrender = function() {
+        self.menuSurrender = function () {
+            self.closeMenu();
             self.popUp({ message: loc('!LOC(live_game:surrender_game.message):Surrender Game?') }).then(function (result) {
                 if (result === 0) {
                     self.closeMenu();
@@ -1917,16 +1951,31 @@ $(document).ready(function () {
                 }
             });
         };
-        self.menuMainMenu = function() {
-            self.popUp({ message: loc('!LOC(live_game:quit_to_main_menu.message):Quit to Main Menu?') }).then(function (result) {
-                if (result === 0)
-                    self.navToMainMenu();
+        self.menuExit = function () {
+            self.closeMenu();
+            self.popUp({
+                buttons : [
+                    loc('!LOC:Quit to Main Menu'),
+                    loc('!LOC:Quit to Desktop'),
+                    loc('!LOC(live_game:cancel.message):Cancel')
+                ],
+                message: 'Quit Game'
+            }).then(function (result) {
+                switch (result) {
+                    case 0: self.navToMainMenu(); break;
+                    case 1: self.exitGame(); break;
+                    case 2: /* do nothing */ break;
+                }
             });
         };
-        self.menuExit = function() {
-            self.popUp({ message: loc('!LOC(live_game:surrender_and_exit_to_desktop.message):Surrender and exit to Desktop?') }).then(function (result) {
-                if (result === 0)
-                    self.exitGame();
+
+        self.menuSave = function () {
+            self.closeMenu();
+            self.popUp({ message: 'Save Game', textfield: true, defaultText: 'Save', filename: true }).then(function (result) {
+                if (result) { /* popup will return the entered text or a falsely value */
+                    var payload = { name: String(result), type: String('') };
+                    model.send_message('write_replay', payload);
+                }
             });
         };
 
@@ -1968,15 +2017,17 @@ $(document).ready(function () {
                 action: 'menuSettings'
             });
 
-            if (self.isSpectator() || self.serverMode() === 'replay') {
-                list.push({
-                    label: loc('!LOC(live_game:main_menu.message):Main Menu'),
-                    action: 'menuMainMenu',
-                });
-            } else {
+            if (!self.isSpectator() && self.serverMode() !== 'replay') {
                 list.push({
                     label: loc('!LOC(live_game:surrender.message):Surrender'),
                     action: 'menuSurrender',
+                });
+            }
+
+            if (self.singleHumanPlayer() || self.gameOptions.sandbox()) {
+                list.push({
+                    label: 'Save Game (Beta)',
+                    action: 'menuSave'
                 });
             }
 
@@ -2079,12 +2130,13 @@ $(document).ready(function () {
             modify_keybinds({ add: ['camera controls', 'gameplay', 'camera', 'hacks'] });
 
             engine.call('watchlist.setCreationAlertTypes', JSON.stringify(['Factory', 'Recon', 'Important']), JSON.stringify([]));
+            engine.call('watchlist.setIdleAlertTypes', JSON.stringify([/*'Factory'*/]), JSON.stringify([])); /* disabled until the alert ui can be cleaned up. */
+            engine.call('watchlist.setArrivalAlertTypes', JSON.stringify(['Commander']), JSON.stringify([]));
             engine.call('watchlist.setDamageAlertTypes', JSON.stringify(['Commander']), JSON.stringify([]));
             engine.call('watchlist.setDeathAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Important']), JSON.stringify(['Wall']));
             engine.call('watchlist.setSightAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Important']), JSON.stringify(['Wall']));
             engine.call('watchlist.setTargetDestroyedAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Important']), JSON.stringify(['Wall']));
 
-            api.twitch.requestState();
 
             window.onbeforeunload = function() {
                 api.Panel.message(api.Panel.parentId, 'game.layout', false);
@@ -2129,25 +2181,16 @@ $(document).ready(function () {
         self.startTeamChat = function () {
             self.startOrSendChat();
             model.teamChat(true);
-            model.twitchChat(false);
         }
 
         self.startNormalChat = function () {
             self.startOrSendChat();
             model.teamChat(false);
-            model.twitchChat(false);
-        }
-
-        self.startTwitchChat = function () {
-            self.startOrSendChat();
-            model.teamChat(false);
-            model.twitchChat(true);
         }
 
         self.chatState = ko.computed(function() {
             return {
                 selected: self.chatSelected(),
-                twitch: self.twitchChat(),
                 team: self.teamChat()
             };
         });
@@ -2354,12 +2397,6 @@ $(document).ready(function () {
 
         self.optionsBarState = ko.computed(function() {
             return {
-                twitch: {
-                    authenticated: self.twitchAuthenticated(),
-                    streaming: self.twitchStreaming(),
-                    mic: self.twitchMicEnabled(),
-                    sounds: self.twitchSoundsEnabled(),
-                },
                 custom_formations: self.allowCustomFormations(),
                 uber_bar: self.showUberBar(),
                 pip: self.showPips()
@@ -2988,13 +3025,6 @@ $(document).ready(function () {
     }
     model = new LiveGameViewModel();
 
-    handlers.twitchtv_statechange = function (payload) {
-        model.twitchStreaming(payload.streamingDesired);
-        model.twitchAuthenticated(payload.authenticated);
-        model.twitchMicEnabled(payload.enableMicCapture);
-        model.twitchSoundsEnabled(payload.enablePlaybackCapture);
-    }
-
     handlers.client_state = function (client) {
         switch (model.mode()) {
             case 'landing':
@@ -3150,6 +3180,12 @@ $(document).ready(function () {
             }
         }
     };
+
+    /* indicates player has been brought back by rewinding time. */
+    handlers.resurrection = function (payload) { 
+        model.reviewMode(false);
+        model.armyId(payload.army_id);
+    }
 
     handlers.camera_type = function (payload) {
         // do not hook up cameraMode... it doesn't work correctly and will break the camera
@@ -3329,7 +3365,6 @@ $(document).ready(function () {
 
         if (payload.planets && payload.planets.length) {
 
-
             payload.planets.forEach(function (element, index, array) {
                 var target = model.celestialViewModels()[index];
                 if (target) {
@@ -3434,9 +3469,17 @@ $(document).ready(function () {
 
         if (observer)
             model.startObserverMode();
+        else
+            model.reviewMode(false);
     }
     handlers.control_state = function (payload) {
         model.paused(payload.paused);
+        model.restart(payload.restart);
+        model.viewReplay(payload.view_replay);
+        model.malformed(payload.malformed);
+
+        if (model.restart())
+            model.showGameOver(false);
     }
     handlers.signal_has_valid_launch_site = function (payload) {
         model.setMessage({
@@ -3486,14 +3529,23 @@ $(document).ready(function () {
     handlers.vision_bits = function (payload) {
         model.availableVisionFlags(payload);
         if (model.showAllAvailableVisionFlags())
-            model.visionSelectAll();
+            model.visionSelectAll(true);
     };
 
     handlers['time_bar.close'] = function() {
         model.showTimeControls(false);
     };
 
-    handlers['unit_alert.show_preview'] = function(target) {
+    handlers['time_bar.play_from_here'] = function (time) {
+        model.popUp({ message: 'Rewind history and restart battle?' }).then(function (result) {
+            if (result === 0) {
+                model.showTimeControls(false);
+                model.send_message('trim_history_and_restart', { time: time });
+            }
+        });
+    };
+
+    handlers['unit_alert.show_preview'] = function (target) {
         model.showAlertPreview(target);
     };
 
