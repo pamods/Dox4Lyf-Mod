@@ -130,21 +130,59 @@ $(document).ready(function () {
 
         if (self.weapon_control() && model.planetIndexToWeaponControlMap[self.index()] !== 'friendly') {
             model.planetIndexToWeaponControlMap[self.index()] = 'friendly';
-            if (!model.isSpectator())
-                model.doCustomAlert('Weapon control established').then(function () { model.celestialControlModel.firePlanetWeapon(self.index()) }); // you may fire when ready
+            if (!model.squelchNotifications())
+                model.doCustomAlert({
+                    name: 'Weapon control established',
+                    special_weapon: true,
+                    lazer: true,
+                    index: self.index(),
+                    name: self.name()
+                })
+                .then(function () {
+                    model.celestialControlModel.firePlanetWeapon(self.index())
+                }); // you may fire when ready
             eventSystem.processEvent(constants.event_type.weapon_control_established);
         }
         else if (!self.weapon_control()) {
+            var lost_control = model.planetIndexToWeaponControlMap[self.index()] === 'friendly';
+            if (lost_control) {
+                model.doCustomAlert({
+                    name: 'Weapon control lost',
+                    special_weapon: true,
+                    lazer: true,
+                    lost: true,
+                    index: self.index()
+                })
+            }
             model.planetIndexToWeaponControlMap[self.index()] = 'none';
         }
 
         if (self.thrust_control() && model.planetIndexToThrustControlMap[self.index()] !== 'friendly') {
             model.planetIndexToThrustControlMap[self.index()] = 'friendly';
-            if (!model.isSpectator())
-                model.doCustomAlert('Thrust control established').then(function () { model.celestialControlModel.smashPlanet(self.index()) });
+            if (!model.squelchNotifications())
+                model.doCustomAlert({
+                        name: 'Thrust control established',
+                        special_weapon: true,
+                        thrust: true,
+                        index: self.index(),
+                        name: self.name()
+                    })
+                    .then(function () {
+                        model.celestialControlModel.smashPlanet(self.index())
+                    });
             eventSystem.processEvent(constants.event_type.thrust_control_established);
         }
         else if (!self.thrust_control()) {
+            var lost_control = model.planetIndexToThrustControlMap[self.index()] === 'friendly';
+            if (lost_control) {
+                model.doCustomAlert({
+                    name: 'Thrust control lost',
+                    special_weapon: true,
+                    thrust: true,
+                    lost: true,
+                    index: self.index()
+                });
+            }
             model.planetIndexToThrustControlMap[self.index()] = 'none';
         }
 
@@ -211,7 +249,9 @@ $(document).ready(function () {
                         console.log('movement_detected');
                         _.delay(function () {
                             eventSystem.processEvent(constants.event_type.asteroid_incoming);
-                            model.doCustomAlert('Celestial movement detected').then(function () {
+                            model.doCustomAlert({
+                                name: 'Celestial movement detected'
+                            }).then(function () {
                                 if (model.celestialControlModel.notActive()) {
                                     api.camera.focusPlanet(self.index());
                                     model.selectedCelestialIndex(self.index());
@@ -562,17 +602,37 @@ $(document).ready(function () {
             return state.message || state.button;
         });
 
+
+        self.showSettings = ko.observable(false);
+        self.showPlayerGuide = ko.observable(false);
+        self.toggleShowPlayerGuide = function () {
+            self.showPlayerGuide(!self.showPlayerGuide());
+        };
+
+        self.showGameLoading = ko.observable(true);
+        self.updateGameLoading = function () {
+            var loadingPanel = api.panels.building_planets;
+            if (loadingPanel)
+                loadingPanel.message('toggle', { show: self.showGameLoading() });
+        };
+        self.showGameLoading.subscribe(function () { self.updateGameLoading(); });
+
         self.mode = ko.observable('default');
         self.serverMode = ko.observable();
         self.paused = ko.observable(false);
         self.restart = ko.observable(false);
+        self.saving = ko.observable(false);
         self.viewReplay = ko.observable(false);
         self.malformed = ko.observable(false);
         self.showPause = ko.computed(function () {
-            if (self.viewReplay())
+            if (self.showGameLoading() || self.viewReplay() || self.showPopUp() || self.showPlayerGuide())
                 return false;
 
             return self.paused() || self.restart();
+        });
+        self.showPause.subscribe(function (value) {
+            if (!value)
+                api.Panel.message('game_paused_panel', 'hide', {});
         });
 
         self.ranked = ko.observable(false);
@@ -605,7 +665,7 @@ $(document).ready(function () {
 
         self.players = ko.observableArray();
         self.singleHumanPlayer = ko.computed(function(){
-            return _.reject(self.players(), 'ai').length === 1;
+            return _.reject(self.players(), 'ai').length <= 1;
         });
         self.playerData = ko.computed(function () {
             return {
@@ -726,12 +786,6 @@ $(document).ready(function () {
         self.gameOverState.subscribe(function() {
             api.panels.game_over_panel && api.panels.game_over_panel.message('state', self.gameOverState());
         });
-
-        self.showSettings = ko.observable(false);
-        self.showPlayerGuide = ko.observable(false);
-        self.toggleShowPlayerGuide = function () {
-            self.showPlayerGuide(!self.showPlayerGuide());
-        };
 
         var refreshPanel = function (name, visible) {
             engine.call("game.allowKeyboard", !visible);
@@ -889,15 +943,6 @@ $(document).ready(function () {
         self.showPlayerControlFlags = ko.computed(function () {
             return self.devMode() || self.cheatAllowChangeControl();
         });
-
-        self.initPlayerVision = function () {
-            var list = self.playerVisionFlags();
-            var flags = [];
-            var i;
-
-            for (i = 0; i < list.length; i++)
-                flags.push(list[i] ? 1 : 0);
-        }
 
         self.controlSingleArmy = function () {
             var i;
@@ -1147,11 +1192,11 @@ $(document).ready(function () {
         self.isSpectator = ko.computed(function () {
             return !self.armyId() || self.defeated() || self.viewReplay();
         });
-        self.showControlGroups = function () {
+        self.showControlGroups = ko.computed(function () {
             return !self.isSpectator();
-        }
+        });
         self.squelchNotifications = ko.computed(function () {
-            var result = self.isSpectator() || !self.armySize();
+            var result = self.isSpectator() || !self.armySize() || self.showTimeControls();
 
             audioModel.setDefeated(result);
             return result;
@@ -1807,8 +1852,8 @@ $(document).ready(function () {
         /// End Camera API
 
         /// Unit alert integration
-        self.doCustomAlert = function(title) {
-            return api.panels.unit_alert.query('custom_alert', title);
+        self.doCustomAlert = function(payload) {
+            return api.panels.unit_alert.query('custom_alert', payload);
         };
         self.showAlertPreview = function(target) {
             var previewHolodeck;
@@ -1904,6 +1949,9 @@ $(document).ready(function () {
         };
 
         self.toggleMenu = function () {
+            if (self.saving())
+                return;
+            
             self.menuIsOpen(!self.menuIsOpen());
 
             if (self.menuIsOpen())
@@ -1971,11 +2019,30 @@ $(document).ready(function () {
 
         self.menuSave = function () {
             self.closeMenu();
-            self.popUp({ message: 'Save Game', textfield: true, defaultText: 'Save', filename: true }).then(function (result) {
+
+            var was_paused = self.paused();
+            if (!was_paused)
+                self.pauseSim();
+
+            var text = (self.singleHumanPlayer() ? 'AI Skirmish' : 'Multiplayer Battle')
+                    + ' ' + UberUtility.createDateString();
+
+            self.popUp({
+                message: 'Save Game',
+                textfield: true,
+                defaultText: text,
+                filename: true,
+                buttons: [
+                    loc('!LOC:Save'),
+                    loc('!LOC(live_game:cancel.message):Cancel')
+                ],
+            }).then(function (result) {
                 if (result) { /* popup will return the entered text or a falsely value */
                     var payload = { name: String(result), type: String('') };
                     model.send_message('write_replay', payload);
                 }
+                else if (!was_paused)
+                    self.playSim();
             });
         };
 
@@ -1995,7 +2062,9 @@ $(document).ready(function () {
         self.menuConfig = ko.computed(function() {
             var list = [];
 
-            if (!self.ranked()) {
+            var allow_pause = self.singleHumanPlayer() || self.sandbox() || !self.isSpectator();
+            var reject_pause = self.ranked() || self.viewReplay();
+            if (allow_pause && !reject_pause) {
                 list.push({
                     label: loc('!LOC(live_game:pause_game.message):Pause Game'),
                     action: 'menuPauseGame'
@@ -2026,7 +2095,7 @@ $(document).ready(function () {
 
             if (self.singleHumanPlayer() || self.gameOptions.sandbox()) {
                 list.push({
-                    label: 'Save Game (Beta)',
+                    label: 'Save Game',
                     action: 'menuSave'
                 });
             }
@@ -2105,13 +2174,11 @@ $(document).ready(function () {
             self.holodeck.view.arePlanetsReady().then(function (ready) {
                 if (!ready) {
                     self.holodeck.view.whenPlanetsReady().done(function () {
-                        self.initPlayerVision();
                         // Note: delayed a bit to avoid a black screen in some situations
                         setTimeout(function () { self.showGameLoading(false); }, 10);
                     });
                 }
                 else {
-                    self.initPlayerVision();
                     self.showGameLoading(false);
                 }
             });
@@ -2377,14 +2444,6 @@ $(document).ready(function () {
             api.panels.unit_alert && api.panels.unit_alert.message('state', self.unitAlertState());
         });
 
-        self.showGameLoading = ko.observable(true);
-        self.updateGameLoading = function () {
-            var loadingPanel = api.panels.building_planets;
-            if (loadingPanel)
-                loadingPanel.message('toggle', { show: self.showGameLoading() });
-        };
-        self.showGameLoading.subscribe(function () { self.updateGameLoading(); });
-
         self.showUberBar = ko.observable(false).extend({ session: 'show_uber_bar' });
         function updateUberBarVisibility() {
             api.Panel.message('uberbar', 'visible', { 'value': self.showUberBar() });
@@ -2399,7 +2458,8 @@ $(document).ready(function () {
             return {
                 custom_formations: self.allowCustomFormations(),
                 uber_bar: self.showUberBar(),
-                pip: self.showPips()
+                pip: self.showPips(),
+                saving: self.saving()
             };
         });
         self.optionsBarStateMutation = ko.observable(0);
@@ -2972,7 +3032,6 @@ $(document).ready(function () {
             api.panels.sandbox && api.panels.sandbox.message('state', state);
         });
 
-        // Next two used to be sandbox only, but now supporting pause
         self.pauseSim = function () { self.send_message('control_sim', { paused: true  }); };
         self.playSim = function () { self.send_message('control_sim', { paused: false }); };
         self.togglePause = function () {
@@ -3477,6 +3536,7 @@ $(document).ready(function () {
         model.restart(payload.restart);
         model.viewReplay(payload.view_replay);
         model.malformed(payload.malformed);
+        model.saving(payload.saving);
 
         if (model.restart())
             model.showGameOver(false);
@@ -3528,6 +3588,7 @@ $(document).ready(function () {
 
     handlers.vision_bits = function (payload) {
         model.availableVisionFlags(payload);
+        model.playerVisionFlags(model.availableVisionFlags());
         if (model.showAllAvailableVisionFlags())
             model.visionSelectAll(true);
     };
@@ -3537,7 +3598,9 @@ $(document).ready(function () {
     };
 
     handlers['time_bar.play_from_here'] = function (time) {
-        model.popUp({ message: 'Rewind history and restart battle?' }).then(function (result) {
+        model.pauseSim();
+        model.popUp({ message: 'Resume from here?' }).then(function (result) {
+            model.playSim()
             if (result === 0) {
                 model.showTimeControls(false);
                 model.send_message('trim_history_and_restart', { time: time });
