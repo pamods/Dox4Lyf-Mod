@@ -9,8 +9,6 @@ $(document).ready(function () {
     var start = /[^\/]*$/;  // ^ : start , \/ : '/', $ : end // as wildcard: /*.json
     var end = /[.]json[^\/]*$/;
 
-    locAddNamespace('units');
-
     function UnitDetailModel(options) {
         var options = options || {};
 
@@ -20,15 +18,29 @@ $(document).ready(function () {
         self.name = ko.observable(loc(options.name || ""));
         self.desc = ko.observable(loc(options.description || ""));
         self.cost = ko.observable(options.cost);
+        self.maxHealth = ko.observable(options.max_health);
 
         self.damage = ko.observable(options.damage);
         self.fireRate = ko.observable(options.rate_of_fire);
 
-        self.buildPower = ko.observable(options.build_arm_power);
-        self.buildEfficency = ko.observable(options.build_arm_cost ? options.build_arm_power / options.build_arm_cost : null);
+        // soon to be kept:
+        self.build_arm = ko.observable(options.build_arm);
+        self.production = ko.observable(options.production);
+        self.consumption = ko.observable(options.consumption);
+        self.storage = ko.observable(options.storage);
+        self.energy_weapon = ko.observable(options.ammo_capacity ? {
+            ammo_capacity: options.ammo_capacity,
+            ammo_demand: options.ammo_demand,
+            ammo_per_shot: options.ammo_per_shot
+        } : null);
 
-        if (self.buildEfficency() && self.buildEfficency().toFixed)
-            self.buildEfficency(self.buildEfficency().toFixed(3));
+        if (options.teleporter) {
+            /* hack in teleporter energy on top of consumption */
+            self.consumption({
+                energy: options.teleporter.energy_demand,
+                mental: 0
+            });
+        }
 
         self.sicon = ko.observable(options.sicon);
         self.siconUrl = ko.observable('coui://ui/main/atlas/icon_atlas/img/strategic_icons/icon_si_' + options.sicon + '.png');
@@ -40,11 +52,9 @@ $(document).ready(function () {
     var annilaseredPlanetSet = ko.observable({}).extend({ local: 'annilasered_planet_set' });
     var annilaseredPlanetUnderEnemyControlSet = ko.observable({}).extend({ local: 'annilasered_planet_under_enemy_control_set' });
     var clearStatsSets = function () {
-        var set = {};
-        smashedPlanetSet(set);
-        annilaseredPlanetSet(set);
-        annilaseredPlanetUnderEnemyControlSet(set);
-
+        smashedPlanetSet({});
+        annilaseredPlanetSet({});
+        annilaseredPlanetUnderEnemyControlSet({});
         lastSuperWeaponTime(0);
     };
     endOfTime.subscribe(function (value) {
@@ -74,7 +84,7 @@ $(document).ready(function () {
             api.tally.incStatInt('lasers_activated_toward_activated_planets');
     });
 
-    function CelestialViewModel(object) {
+    function CelestialViewModel(object, previous) {
         var self = this;
 
         self.isSun = ko.observable(!!object.isSun);
@@ -95,7 +105,10 @@ $(document).ready(function () {
         self.collisionImminent = ko.observable(object.collision_imminent);
         self.weapon_control = ko.observable(object.weapon_control);
         self.weaponFiring = ko.observable(object.weapon_firing);
-        self.targetActiveUnderEnemyControl = ko.observable(object.target_under_enemy_control);
+        self.biome = ko.observable(object.biome);
+
+        // the opponent loses control of the planet at the exact same time as the laser fires, so we have to look at the previous value
+        self.targetActiveUnderEnemyControl = ko.observable(object.weapon_firing ? previous.targetActiveUnderEnemyControl() : object.target_under_enemy_control);
         self.target_index = ko.observable(object.target_index);
 
         self.selfGuided = ko.observable(object.self_guided);
@@ -108,11 +121,12 @@ $(document).ready(function () {
 
             var interlock = function (observable) {
                 var set = observable();
-                if (!set[key]) {
-                    set[key] = true;
-                    observable(set);
-                    changed = true;
-                }
+                if (set[key])
+                    return;
+
+                set[key] = true;
+                observable(set);
+                changed = true;
             }
 
             if (self.weapon_control() && self.weaponFiring())
@@ -130,7 +144,7 @@ $(document).ready(function () {
 
         if (self.weapon_control() && model.planetIndexToWeaponControlMap[self.index()] !== 'friendly') {
             model.planetIndexToWeaponControlMap[self.index()] = 'friendly';
-            if (!model.squelchNotifications())
+            if (!model.squelchNotifications()) {
                 model.doCustomAlert({
                     name: 'Weapon control established',
                     special_weapon: true,
@@ -141,49 +155,80 @@ $(document).ready(function () {
                 .then(function () {
                     model.celestialControlModel.firePlanetWeapon(self.index())
                 }); // you may fire when ready
-            eventSystem.processEvent(constants.event_type.weapon_control_established);
+                eventSystem.processEvent(constants.event_type.weapon_control_established);
+            }
         }
         else if (!self.weapon_control()) {
             var lost_control = model.planetIndexToWeaponControlMap[self.index()] === 'friendly';
             if (lost_control) {
-                model.doCustomAlert({
-                    name: 'Weapon control lost',
-                    special_weapon: true,
-                    lazer: true,
-                    lost: true,
-                    index: self.index()
-                })
+                if (!model.squelchNotifications())
+                    model.doCustomAlert({
+                        name: 'Weapon control lost',
+                        special_weapon: true,
+                        lazer: true,
+                        lost: true,
+                        index: self.index()
+                    });
             }
             model.planetIndexToWeaponControlMap[self.index()] = 'none';
         }
 
         if (self.thrust_control() && model.planetIndexToThrustControlMap[self.index()] !== 'friendly') {
             model.planetIndexToThrustControlMap[self.index()] = 'friendly';
-            if (!model.squelchNotifications())
+            if (!model.squelchNotifications()) {
                 model.doCustomAlert({
-                        name: 'Thrust control established',
-                        special_weapon: true,
-                        thrust: true,
-                        index: self.index(),
-                        name: self.name()
-                    })
-                    .then(function () {
-                        model.celestialControlModel.smashPlanet(self.index())
-                    });
-            eventSystem.processEvent(constants.event_type.thrust_control_established);
+                    name: 'Thrust control established',
+                    special_weapon: true,
+                    thrust: true,
+                    index: self.index(),
+                    name: self.name()
+                })
+                .then(function () {
+                    model.celestialControlModel.smashPlanet(self.index())
+                });
+                eventSystem.processEvent(constants.event_type.thrust_control_established);
+            }
         }
         else if (!self.thrust_control()) {
             var lost_control = model.planetIndexToThrustControlMap[self.index()] === 'friendly';
             if (lost_control) {
-                model.doCustomAlert({
-                    name: 'Thrust control lost',
-                    special_weapon: true,
-                    thrust: true,
-                    lost: true,
-                    index: self.index()
-                });
+                if (!model.squelchNotifications())
+                    model.doCustomAlert({
+                        name: 'Thrust control lost',
+                        special_weapon: true,
+                        thrust: true,
+                        lost: true,
+                        index: self.index()
+                    });
             }
             model.planetIndexToThrustControlMap[self.index()] = 'none';
+        }
+
+        if (!self.dead() && previous && previous.dead()) {
+            if (!model.squelchNotifications()) {
+                model.doCustomAlert({
+                    name: 'New asteroid detected orbiting the system',
+                    special_weapon: false,
+                    thrust: false,
+                    lost: false,
+                    index: self.index()
+                }).then(function () {
+                    if (model.celestialControlModel.notActive()) {
+                        api.camera.focusPlanet(self.index());
+                        model.selectedCelestialIndex(self.index());
+                        api.camera.setZoom("orbital", false);
+                    }
+                });
+                eventSystem.processEvent(constants.event_type.asteroid_respawned);
+            }
+        }
+
+        if (self.dead() && previous && !previous.dead()) {
+            model.considerPlayingSound(
+                "/VO/Computer/Annhilated_Planet_" + previous.biome(),
+                { 'asteroid': 1, 'moon': 2}[previous.biome()] || 3);
+
+            model.stopRagnarokMusic();
         }
 
         self.status = ko.observable((self.thrust_control()) ? "READY" : "");
@@ -227,8 +272,6 @@ $(document).ready(function () {
         self.handleClick = function () {
             if (model.celestialControlModel.notActive()) {
                 api.camera.focusPlanet(self.index());
-                model.selectedCelestialIndex(self.index());
-                api.camera.setZoom("orbital", false);
             }
         }
 
@@ -246,30 +289,30 @@ $(document).ready(function () {
 
                 switch (current) {
                     case 'movement_detected':
-                        console.log('movement_detected');
+                        api.debug.log('movement_detected');
                         _.delay(function () {
                             eventSystem.processEvent(constants.event_type.asteroid_incoming);
-                            model.doCustomAlert({
-                                name: 'Celestial movement detected'
-                            }).then(function () {
-                                if (model.celestialControlModel.notActive()) {
-                                    api.camera.focusPlanet(self.index());
-                                    model.selectedCelestialIndex(self.index());
-                                    api.camera.setZoom("orbital", false);
-                                }
-                            });
-                        }, self.thrust_control() ? 10 * 1000 : 0);
+                            if (!model.squelchNotifications())
+                                model.doCustomAlert({
+                                    name: 'Celestial movement detected'
+                                }).then(function () {
+                                    if (model.celestialControlModel.notActive()) {
+                                        api.camera.focusPlanet(self.index());
+                                        api.camera.setZoom("orbital", false);
+                                    }
+                                });
+                        }, self.thrust_control() ? 10 * 1000 : 0); // why is there a delay based on thrust control?
                         break;
 
                     case 'self_guided':
-                        console.log('self_guided');
+                        api.debug.log('self_guided');
                         eventSystem.processEvent(constants.event_type.asteroid_imminent);
                         api.audio.playSound('/SE/Celestial/Planet_Siren');
                         audioModel.triggerPlanetSmashMusic();
                         break;
 
                     case 'collision_imminent':
-                        console.log('collision_imminent');
+                        api.debug.log('collision_imminent');
                         eventSystem.processEvent(constants.event_type.asteroid_impact);
                         api.audio.playSound('/SE/Celestial/Planet_Siren_last');
                         break;
@@ -281,7 +324,7 @@ $(document).ready(function () {
     function CelestialControlModel() {
         var self = this;
 
-        self.actionsList = ['do_nothing', 'change_orbit', 'smash_planet'];
+        self.actionsList = ['do_nothing', 'change_orbit', 'smash_planet', 'fire_weapon'];
         self.actionIndex = ko.observable(0);
         self.actionIsChangeOrbit = ko.computed(function () { return self.actionIndex() === 1; });
         self.actionIsSmashPlanet = ko.computed(function () { return self.actionIndex() === 2; });
@@ -365,7 +408,6 @@ $(document).ready(function () {
 
         self.hasSurfaceTarget = ko.observable(false);
         self.requireConfirmation = ko.observable(false);
-        self.requireSurfaceTarget = ko.computed(function () { return self.actionIndex() == 2; });
 
         self.hasSurfaceTarget.subscribe(function (value) {
             if (value)
@@ -379,17 +421,7 @@ $(document).ready(function () {
             api.ar_system.changePlanetSelectionState(value, 'target');
 
             if (value !== -1) {
-                if (self.requireSurfaceTarget()) {
-
-                    api.camera.focusPlanet(value);
-                    api.camera.setZoom('orbital', false);
-
-                    api.ar_system.changeSkyboxOverlayColor(1.0, 0.0, 0.0, 0.2);
-                    engine.call("holodeck.startRequestInterplanetaryTarget", self.sourcePlanetIndex());
-                }
-                else {
-                    self.executeCelestialAction();
-                }
+                self.executeCelestialAction();
             }
             else {
                 api.ar_system.changeSkyboxOverlayColor(0.0, 0.0, 0.0, 0.0);
@@ -451,6 +483,7 @@ $(document).ready(function () {
             self.actionIndex(2);
             self.sourcePlanetIndex(index);
             api.camera.setZoom('celestial', false);
+            audioModel.triggerCelestialTargetingMusic();
         };
 
         self.movePlanet = function (index) {
@@ -469,6 +502,7 @@ $(document).ready(function () {
             self.actionIndex(3);
             self.sourcePlanetIndex(index);
             api.camera.setZoom('celestial');
+            audioModel.triggerCelestialTargetingMusic();
         };
 
         self.cancelFire = function (index) {
@@ -499,8 +533,7 @@ $(document).ready(function () {
                     engine.call('planet.movePlanet', self.sourcePlanetIndex(), self.targetPlanetIndex(), 10000.0);
                     break;
                 case 2:
-                    engine.call("holodeck.endRequestInterplanetaryTarget");
-                    engine.call('planet.attackPlanet', self.sourcePlanetIndex(), Number(0), Number(0), Number(0)).then( function(success) {
+                    engine.call('planet.attackPlanet', self.sourcePlanetIndex(), self.targetPlanetIndex()).then( function(success) {
                         if (success)
                         {
                             api.audio.playSound('/SE/UI/UI_Annihilate');
@@ -561,10 +594,10 @@ $(document).ready(function () {
 
         self.showPopUp = ko.observable(false);
         self.popUp = function(params) {
-            var messages = params.messages || [params.message || loc('!LOC(live_game:exit_game.message):Exit Game?')];
+            var messages = params.messages || [params.message || loc('!LOC:Exit Game?')];
             var buttons = params.buttons || [
-                loc('!LOC(live_game:yes.message):Yes'),
-                loc('!LOC(live_game:cancel.message):Cancel')
+                '!LOC:Yes',
+                '!LOC:Cancel'
             ];
             self.showPopUp(true);
             api.Panel.update();
@@ -630,10 +663,9 @@ $(document).ready(function () {
 
             return self.paused() || self.restart();
         });
-        self.showPause.subscribe(function (value) {
-            if (!value)
-                api.Panel.message('game_paused_panel', 'hide', {});
-        });
+
+        self.minValidTime = ko.observable(-1);
+        self.maxValidTime = ko.observable(-1);
 
         self.ranked = ko.observable(false);
         self.ranked.subscribe(function(newRankedValue) {
@@ -663,30 +695,57 @@ $(document).ready(function () {
         self.reviewMode = ko.observable(false).extend({ session: 'review_mode' });
         self.forceResumeAfterReview = ko.observable(false);
 
+        self.economyHandicaps = ko.observable([]);
+
+        self.armyId = ko.observable();
+
         self.players = ko.observableArray();
-        self.singleHumanPlayer = ko.computed(function(){
-            return _.reject(self.players(), 'ai').length <= 1;
-        });
-        self.playerData = ko.computed(function () {
-            return {
-                colors: _.pluck(self.players(), 'color'),
-                names: _.pluck(self.players(), 'name'),
-                ids: _.pluck(self.players(), 'id')
-            };
-        });
-        self.playerData.subscribe((function () {
-            var hash = '';
 
-            return function (value) {
-                var new_hash = JSON.stringify(value);
-                if (hash !== new_hash) {
-                    api.Panel.message('gamestats', 'player_data', value);
-                    api.Panel.message('unit_alert', 'player_data', value);
-                }
-                hash = new_hash;
-            };
-        })());
+        self.originalArmyIndex = ko.observable();
+        self.armyIndex = ko.computed(function () {
 
+            var armies = self.players(),
+                id = self.armyId(),
+                result = -1;
+
+            _.forEach(armies, function (element, index) {
+                if (id === element.id)
+                    result = index;
+            });
+
+            if (result !== -1 && _.isUndefined(self.originalArmyIndex()))
+                self.originalArmyIndex(result);
+
+            return result;
+        });
+        self.defeated = ko.computed(function () {
+            var index = self.originalArmyIndex();
+            if (_.isUndefined(index) || index === -1)
+                return false;
+
+            var player = self.players()[index];
+
+            return player.defeated;
+        });
+
+        self.playerWasAlwaysSpectating = ko.computed(function () {
+            var index = self.originalArmyIndex();
+            return (_.isUndefined(index) || index === -1);
+        });
+
+        self.singleHumanPlayer = ko.computed(function () {
+            var humanArmies = _.reject(self.players(), 'ai');
+
+            if (humanArmies.length !== 1)
+                return false;
+
+            // multiple commanders implies multiple human players in a shared army.
+            if (humanArmies[0].commanders.length !== 1)
+                return false;
+
+            return true;
+        });
+        
         self.sendablePlayers = ko.computed(function () {
             return _.map(self.players(), function (player) {
                 var clone = _.clone(player);
@@ -695,6 +754,28 @@ $(document).ready(function () {
                 return clone;
             });
         });
+
+        self.playerData = ko.computed(function () {
+            return {
+                colors: _.pluck(self.sendablePlayers(), 'color'),
+                primary_color: _.pluck(self.sendablePlayers(), 'primary_color'),
+                names: _.pluck(self.sendablePlayers(), 'name'),
+                ids: _.pluck(self.sendablePlayers(), 'id'),
+                commanders: _.pluck(self.sendablePlayers(), 'commanders'),
+                army_index: self.originalArmyIndex()
+            };
+        });
+        self.playerData.subscribe((function () {
+            var hash = '';
+
+            return function (value) {
+                var new_hash = JSON.stringify(value);
+                if (hash !== new_hash) {
+                    api.Panel.message('', 'player_data', value);
+                }
+                hash = new_hash;
+            };
+        })());
 
         self.player = ko.computed(function () {
             var player = '';
@@ -710,7 +791,7 @@ $(document).ready(function () {
             if (!self.player() || !self.player().allies || !self.player().slots)
                 return false;
 
-            var result = !!self.player().allies.length || self.player().slots.length > 1
+            var result = !!self.player().allies.length || self.player().slots.length > 1;
 
             if (result)
                 self.playerWasInTeam(true)
@@ -727,12 +808,9 @@ $(document).ready(function () {
         self.gameOver = ko.observable(false);
         self.showGameOver = ko.observable(false);
 
-
         /* called from game_over scene */
         self.signalShowGameOver = function (value) {
-            if (self.gameOver()) { /* gameOver = false indicates that we just used ChronoResume */
-                self.showGameOver(value);
-            }
+            self.showGameOver(value);
         };
 
         self.showDefeatPending = ko.observable(false);
@@ -759,24 +837,60 @@ $(document).ready(function () {
                     self.gameOverState.notifySubscribers();
                 }
             }, self.gameOverDelay());
-        }
+        };
+
+        self.restart.subscribe(function (value) {
+            if (value) {
+                self.baseGameOverState({
+                    game_over: false,
+                    defeated: false,
+                    open: false,
+                    auto_show: false,
+                    ranked: self.gameOptions.isLadder1v1()
+                });
+
+                audioModel.triggerRewindMusic();
+                audioModel.setDefeated(false);
+            }
+            else {
+                self.baseGameOverState({
+                    game_over: self.gameOver(),
+                    defeated: self.defeated(),
+                    open: false,
+                    auto_show: (self.gameOver() || self.gameOver()),
+                    ranked: self.gameOptions.isLadder1v1()
+                });
+            }
+        });
+
         self.showDefeat = function () {
             self.baseGameOverState({
                 defeated: true,
                 auto_show: true,
                 always_spectating: self.playerWasAlwaysSpectating(),
+                ranked: self.gameOptions.isLadder1v1()
             });
             delayShowGameOver();
             self.gamestatsPanelIsOpen(false);
             self.showTimeControls(false);
             self.showDefeatPending(true);
         };
+        self.clearDefeat = function () {
+            self.baseGameOverState({
+                defeated: false,
+                auto_show: false,
+                always_spectating: self.playerWasAlwaysSpectating(),
+                ranked: self.gameOptions.isLadder1v1()
+            });
+            self.gamestatsPanelIsOpen(false);
+            self.showTimeControls(false);
+        };
         self.showGameComplete = function () {
 
             self.baseGameOverState({
                 game_over: true,
                 always_spectating: self.playerWasAlwaysSpectating(),
-                defeated: self.originalArmyIndexDefeated(),
+                defeated: self.defeated(),
                 open: self.showGameOver() || self.showDefeatPending(),
                 auto_show: !(self.gamestatsPanelIsOpen() || self.showTimeControls()),
                 ranked: self.gameOptions.isLadder1v1()
@@ -841,36 +955,44 @@ $(document).ready(function () {
             }
         });
 
-        self.systemName = ko.observable('System');
+        self.systemName = ko.observable('');
         self.celestialViewModels = ko.observableArray([]);
         self.startingPlanetBiome = ko.observable('earth');
-        self.selectedCelestialIndex = ko.observable(-1);
+
+
+        self.cameraFocus = {
+            primary: ko.observable(),
+            pip_0: ko.observable(),
+            preview: ko.observable()
+        };
+
+        self.selectedCelestialIndex = ko.computed(function() {
+            var focus = self.cameraFocus.primary();
+            return focus ? focus.planet() : -1;
+        });
         self.selectSun = function () {
-            self.selectedCelestialIndex(self.celestialViewModels.length);
             api.camera.setZoom('celestial', false);
         }
         self.isSunSelected = ko.computed(function () {
             return self.selectedCelestialIndex() === -1 || self.selectedCelestialIndex() === self.celestialViewModels().length;
         });
+
         self.hoverCelestialIndex = ko.observable(-1);
 
         self.chatSelected = ko.observable(false);
         self.teamChat = ko.observable(false);
 
-        self.defeated = ko.computed(function () {
-            if (!self.player())
-                return false;
-
-            return self.player().defeated;
-        });
-
         self.defeated.subscribe(function (value) {
+
             if (value) {
                 audioModel.triggerDefeatMusic();
                 audioModel.setDefeated(true);
-
-                $("#game_over panel").attr({ src: 'coui://ui/main/game/game_over/game_over.html' });
                 self.showDefeat();
+            }
+            else {
+                audioModel.triggerRewindMusic();
+                audioModel.setDefeated(false);
+                self.clearDefeat();
             }
         });
 
@@ -962,36 +1084,6 @@ $(document).ready(function () {
             self.send_message('change_vision_flags', { 'vision_flags': self.playerVisionFlags() });
         }
 
-        self.originalArmyIndex = ko.observable();
-        self.armyIndex = ko.computed(function () {
-
-            var armies = self.players();
-            var result = -1;
-
-            _.forEach(armies, function (element, index) {
-                if (self.armyId() === element.id)
-                    result = index;
-            });
-
-            if (result !== -1 && _.isUndefined(self.originalArmyIndex()))
-                self.originalArmyIndex(result);
-
-            return result;
-        });
-        self.originalArmyIndexDefeated = ko.computed(function () {
-            var index = self.originalArmyIndex();
-            if (_.isUndefined(index) || index === -1)
-                return false;
-
-            var player = self.players()[index];
-
-            return player.defeated;
-        });
-
-        self.playerWasAlwaysSpectating = ko.computed(function () {
-            var index = self.originalArmyIndex();
-            return (_.isUndefined(index) || index === -1);
-        });
 
         self.observerModeCalledOnce = ko.observable(false);
         self.startObserverMode = function () {
@@ -1029,13 +1121,19 @@ $(document).ready(function () {
             self.observerModeCalledOnce(true);
         }
 
+        self.canSave = ko.pureComputed(function() {
+            var serverCanSave = (self.serverMode() === 'playing') || (self.serverMode() === 'game_over');
+            return (self.singleHumanPlayer() || self.gameOptions.sandbox()) && serverCanSave;
+        });
+
         /*  Time  */
         self.showTimeControls = ko.observable(false).extend({ session: 'show_time_controls' });
         self.showTimeControls.subscribe(function (value) {
-            //api.audio.playSoundAtLocation(value ? '/VO/Computer/cronocam_on' : '/VO/Computer/cronocam_off', 0, 0, 0);
-            if (!self.showTimeControls() && self.gameOver()) {
-                self.showGameOver(true);
-            }
+            if (!value && (self.defeated() || self.gameOver()))
+                api.panels.game_over_panel.query('ready').then(function (ready) {
+                    if (ready)
+                        self.showGameOver(true);
+                });
         });
         self.toggleTimeControls = function() {
             self.showTimeControls(!self.showTimeControls());
@@ -1046,19 +1144,30 @@ $(document).ready(function () {
             var require = self.singleHumanPlayer() || self.gameOptions.sandbox();
             var prevent = self.serverMode() === 'replay' || self.malformed();
 
-            return {
+            var state = {
                 visible: self.showTimeControls(),
-                showPlayFromHere: require && !prevent
+                showPlayFromHere: require && !prevent,
+                minValidTime: self.minValidTime(),
+                maxValidTime: self.maxValidTime()
             };
+
+            return state;
         });
         self.timeBarState.subscribe(function() {
             api.panels.time_bar && api.panels.time_bar.message('state', self.timeBarState());
         });
 
-        self.controlTime = function () {
-            if (!self.showTimeControls()) {
+        self.controlTime = function (value) {
+            if (!!value === !!self.showTimeControls())
+                return;
+
+            if (value) {
                 self.showTimeControls(true);
                 api.time.control();
+            }
+            else {
+                self.showTimeControls(false);
+                api.time.resume();
             }
         };
         self.viewReplay.subscribe(function (value) {
@@ -1070,7 +1179,7 @@ $(document).ready(function () {
             }
             else
             {
-				self.controlTime(false);
+                self.controlTime(false);
                 self.reviewMode(false);
             }
         });
@@ -1143,7 +1252,9 @@ $(document).ready(function () {
                                            'link_teleporters',
 
                                            'fire_secondary_weapon',
-                                           'ping'
+                                           'ping',
+
+                                           'mass_teleport'
         ]);
 
         self.targetableCommands = ko.observableArray([false,
@@ -1188,7 +1299,7 @@ $(document).ready(function () {
         self.armySize = ko.observable(0.0);
 
         self.armyCount = ko.observable();
-        self.armyId = ko.observable();
+
         self.isSpectator = ko.computed(function () {
             return !self.armyId() || self.defeated() || self.viewReplay();
         });
@@ -1282,7 +1393,32 @@ $(document).ready(function () {
             api.panels.action_bar && api.panels.action_bar.message('selection_order', 'BuildStanceContinuous');
         }
 
-        self.buildHotkeyModel = new BuildHotkeyModel();
+        self.considerPlayingSound = (function() {
+            var bestCue = '',
+                bestPriority = 0,
+                timeoutId = null,
+                playSound = function() {
+                    api.audio.playSound(bestCue); 
+
+                    bestCue = '';
+                    bestPriority = 0;
+                    timeoutId = null;
+                },
+                considerPlayingSound = function (cue, priority) {
+                    /* this simple version of the trigger model is used only for planet VO, and only because triggers don't prioritize correctly across panels */
+                    if (priority > bestPriority) {
+                        bestCue = cue;
+                        bestPriority = priority;
+                        if (!timeoutId) {
+                            timeoutId = window.setTimeout(playSound, 15);
+                        }
+                    }
+                }
+
+                return considerPlayingSound;
+        })();
+
+        self.buildHotkeyModel = new Build.HotkeyModel();
 
         self.buildTabs = ko.observable({});
         self.orderedBuildTabs = ko.computed(function () {
@@ -1420,7 +1556,7 @@ $(document).ready(function () {
         self.buildHoverState = ko.computed(function() { return self.buildHover() && ko.toJS(self.buildHover()); });
         self.buildHoverState.subscribe(function(state) {
             if (state && state.name) {
-                api.panels.build_hover && api.panels.build_hover.query('state', state).then(api.panels.build_hover.update());
+                api.panels.build_hover && api.panels.build_hover.query('state', state).then(function() { api.panels.build_hover.update(); });
             }
         });
 
@@ -1438,7 +1574,7 @@ $(document).ready(function () {
 
             self.activatedBuildId(item.id);
 
-            if (item.structure) {
+            if (item.structure || item.titan) {
 
                 if (self.currentBuildStructureId() === item.id && self.mode() === 'fab')
                     return;
@@ -1697,14 +1833,7 @@ $(document).ready(function () {
             if (self.showTimeControls() || self.reviewMode() || self.celestialControlModel.active() || self.isSpectator())
                 return false;
 
-            // Ping is always available, and is currently part of the commands.
-            // If that changes, the code below should be used instead.
             return true;
-
-//            if (self.hasSelection() && !self.showLanding())
-//                return true
-//
-//            return false;
         });
 
         self.showActionBar = ko.computed(function() {
@@ -1791,12 +1920,7 @@ $(document).ready(function () {
                 remove_keybinds('free camera controls');
         });
         self.pauseCamera = ko.observable(false);
-        self.focusPlanet = ko.observable(0);
-        self.focusPlanet.subscribe(function (index) {
-            if (self.cameraMode !== 'space')
-                api.camera.track(false);
-            api.camera.focusPlanet(index);
-        });
+
         self.alignCameraToPole = function () {
             api.camera.alignToPole();
         };
@@ -1805,25 +1929,33 @@ $(document).ready(function () {
         };
 
         self.changeFocusPlanet = function (delta) {
-            var index = self.focusPlanet();
-            var t = (index + delta) % (self.celestialViewModels().length - 1);
+            var planets = self.celestialViewModels(),
+                oldFocus = api.camera.getFocus(api.Holodeck.focused.id).planet(),
+                idx = (oldFocus != -1) ? oldFocus : (delta > 0 ? 0 : planets.length - 1),
+                sentinel = idx,
+                advance = function() {
+                    idx = (idx + delta + planets.length) % planets.length;
+                    return (idx === sentinel) ? null : planets[idx];
+                },
+                planet;
 
-            if (index === -1)
-                t = 0;
+            if (delta !== -1 && delta !== 1)
+                return;
 
-            while (t !== index) {
-                if (!self.celestialViewModels()[t].dead()) {
-                    self.focusPlanet(t);
+            while (planet = advance()) {
+                if (!planet.dead() && !planet.isSun()) {
+                    api.camera.focusPlanet(idx);
+                    api.audio.playSound('/SE/UI/UI_planet_switch_select');
                     return;
                 }
-                t = (t + delta) % (self.celestialViewModels().length - 1);
             }
         }
+
         self.focusNextPlanet = function () {
             self.changeFocusPlanet(1);
         }
         self.focusPreviousPlanet = function () {
-            self.changeFocusPlanet(self.celestialViewModels().length - 2);
+            self.changeFocusPlanet(-1);
         }
 
         var pauseCameraRule = ko.computed(function() {
@@ -1834,7 +1966,7 @@ $(document).ready(function () {
 
             var ccm = self.celestialControlModel;
 
-            if (ccm.targetPlanetIndex() !== -1 && ccm.requireSurfaceTarget()) {
+            if (ccm.targetPlanetIndex() !== -1) {
                 api.camera.setAllowZoom(false);
                 api.camera.setAllowPan(true);
                 api.camera.setAllowRoll(true);
@@ -1855,29 +1987,90 @@ $(document).ready(function () {
         self.doCustomAlert = function(payload) {
             return api.panels.unit_alert.query('custom_alert', payload);
         };
-        self.showAlertPreview = function(target) {
-            var previewHolodeck;
-            if (target.holodeck) {
-                previewHolodeck = (new Function('self', 'return self.' + target.holodeck))(self);
-                delete target.holodeck;
-            }
-            previewHolodeck = previewHolodeck || self.preview;
+
+        self.clippingPanels = { };
+
+        var updatePreviewClipping = function() {
+            var $deck = self.preview.$div,
+                visible = $deck.is(":visible"),
+                deckOffset = $deck.offset(),
+                w = $deck.width(),
+                h = $deck.height();
+
+            _.forEach(self.clippingPanels, function(active, panelName) {
+                var panel = api.panels[panelName],
+                    panelOffset = $(panel._div).offset();
+
+                api.Panel.message(panelName, 'preview.clip', {
+                    visible: visible,
+                    gap: [
+                        deckOffset.left - panelOffset.left - 1,
+                        deckOffset.top - panelOffset.top - 1,
+                        w + 2,
+                        h + 2
+                    ]
+                });
+            });
+        };
+
+        self.showAlertPreview = function(request) {
+            var target = request.target,
+                placement = request.placement,
+                previewHolodeck = placement.holodeck ? (new Function('self', 'return self.' + placement.holodeck))(self) : self.preview;
+
             if (previewHolodeck === self.pips[0] && self.pips.length === 1)
                 self.showPips(true);
             else
                 previewHolodeck.$div.show();
+
+            if (previewHolodeck === self.preview) {
+                var
+                    panelOffset = $(api.panels[placement.panelName]._div).offset(),
+                    left = panelOffset.left + placement.offset[0] + placement.alignDeck[0] * $(previewHolodeck.div).width(),
+                    top = panelOffset.top + placement.offset[1] + placement.alignDeck[1] * $(previewHolodeck.div).height();
+
+                // todo soon: grab planet info off the holodeck's camera and use it to display the planet name!
+                previewHolodeck.$div.css({left: left + 'px', top: top + 'px', position: 'absolute'});
+            }
+
             previewHolodeck.update();
             _.delay(api.Panel.update);
 
             var focused = api.Holodeck.focused;
             previewHolodeck.focus();
-            api.camera.lookAt(target);
+
+            if (!previewHolodeck.hasLookedAtPlanet) {
+                /* patch around an arcane focus issue */
+                api.camera.focusPlanet(0);
+                previewHolodeck.hasLookedAtPlanet = true;
+            }
+
+            if (typeof target.control_group === 'number') {
+                api.camera.track(true, target.control_group);
+            } else if (typeof target.planetIdx === 'number') {
+                var anchor = api.camera.getPlanetAnchor(self.holodeck, target.planetIdx);
+                /* this could be a nice place to use holodeck tracking, if the primary holodeck is currently looking at this planet */
+                if (anchor) {
+                    api.camera.recallAnchor(anchor);
+                } else {
+                    api.camera.focusPlanet(target.planetIdx);
+                }
+            } else if (target.planetIdx === 'sun') {
+                api.camera.setZoom('celestial', false);
+            } else {
+                api.camera.lookAt(target);
+            }
             if (focused)
                 focused.focus();
+
+            updatePreviewClipping();
         };
         self.hideAlertPreview = function () {
             self.preview.$div.hide();
             self.preview.update();
+
+            updatePreviewClipping();
+
             _.delay(api.Panel.update);
         };
 
@@ -1901,7 +2094,16 @@ $(document).ready(function () {
                 triggerModel.testEvent(constants.event_type.in_combat, self.combatUnitsInCombat());
                 triggerModel.testEvent(constants.event_type.metal_lost, self.metalLost());
                 triggerModel.testEvent(constants.event_type.enemy_metal_destroyed, self.enemyMetalDestroyed());
+
             }
+        };
+
+        self.startRagnarokMusic = function() {
+            audioModel.triggerRagnarokMusic();
+        };
+
+        self.stopRagnarokMusic = function() {
+            audioModel.stopRagnarokMusic();
         };
 
         self.processExternalUnitEvent = function (type, payload) {
@@ -1931,18 +2133,21 @@ $(document).ready(function () {
 
             api.audio.setMusic(starting_music);
 
-            self.musicHasStarted(true)
+            self.musicHasStarted(true);
         }
 
         self.gamestatsPanelIsOpen = ko.observable(false);
-        self.showGameOverOnStatsClose = ko.observable(false);
         self.gamestatsPanelIsOpen.subscribe(function (value) {
-            if (!value && self.showGameOverOnStatsClose())
-                self.showGameOver(true);
+            if (!value && (self.defeated() || self.gameOver()))
+                api.panels.game_over_panel.query('ready').then(function (ready) {
+                    if (ready)
+                        self.showGameOver(true);
+                });
         });
 
         self.toggleGamestatsPanel = function() {
             self.gamestatsPanelIsOpen(!self.gamestatsPanelIsOpen());
+            self.closeMenu();
         };
         self.setStatsPanelState = function (open) {
             self.gamestatsPanelIsOpen(open);
@@ -1951,7 +2156,7 @@ $(document).ready(function () {
         self.toggleMenu = function () {
             if (self.saving())
                 return;
-            
+
             self.menuIsOpen(!self.menuIsOpen());
 
             if (self.menuIsOpen())
@@ -1968,6 +2173,10 @@ $(document).ready(function () {
             self.pauseSim();
             self.closeMenu();
         };
+        self.menuResumeGame = function () {
+            self.playSim();
+            self.closeMenu();
+        };
         self.menuTogglePlayerGuide = function () {
             self.toggleShowPlayerGuide();
             self.closeMenu();
@@ -1982,7 +2191,7 @@ $(document).ready(function () {
         };
         self.menuSurrender = function () {
             self.closeMenu();
-            self.popUp({ message: loc('!LOC(live_game:surrender_game.message):Surrender Game?') }).then(function (result) {
+            self.popUp({ message: '!LOC:Surrender Game?' }).then(function (result) {
                 if (result === 0) {
                     self.closeMenu();
 
@@ -2003,15 +2212,13 @@ $(document).ready(function () {
             self.closeMenu();
             self.popUp({
                 buttons : [
-                    loc('!LOC:Quit to Main Menu'),
-                    loc('!LOC:Quit to Desktop'),
-                    loc('!LOC(live_game:cancel.message):Cancel')
+                    '!LOC:Quit to Main Menu',
+                    '!LOC:Cancel'
                 ],
-                message: 'Quit Game'
+                message: '!LOC:Quit Game'
             }).then(function (result) {
                 switch (result) {
                     case 0: self.navToMainMenu(); break;
-                    case 1: self.exitGame(); break;
                     case 2: /* do nothing */ break;
                 }
             });
@@ -2021,20 +2228,20 @@ $(document).ready(function () {
             self.closeMenu();
 
             var was_paused = self.paused();
-            if (!was_paused)
+            if (!was_paused && !self.gameOver())
                 self.pauseSim();
 
             var text = (self.singleHumanPlayer() ? 'AI Skirmish' : 'Multiplayer Battle')
                     + ' ' + UberUtility.createDateString();
 
             self.popUp({
-                message: 'Save Game',
+                message: '!LOC:Save Game',
                 textfield: true,
                 defaultText: text,
                 filename: true,
                 buttons: [
-                    loc('!LOC:Save'),
-                    loc('!LOC(live_game:cancel.message):Cancel')
+                    '!LOC:Save',
+                    '!LOC:Cancel'
                 ],
             }).then(function (result) {
                 if (result) { /* popup will return the entered text or a falsely value */
@@ -2050,7 +2257,7 @@ $(document).ready(function () {
             if (!model.selection())
                 return;
 
-            self.popUp({ message: loc('!LOC(live_game:destroy_selected_units.message):Destroy selected units?') }).then(function (result) {
+            self.popUp({ message: '!LOC:Destroy selected units?' }).then(function (result) {
                 if (result === 0)
                     api.unit.selfDestruct();
             });
@@ -2059,56 +2266,71 @@ $(document).ready(function () {
         self.menuAction = function (action) { self[action](); };
 
         /* affected by gw live_game_patch. check patch before changing. */
-        self.menuConfig = ko.computed(function() {
+        self.menuConfigGenerator = ko.observable(function() {
             var list = [];
 
             var allow_pause = self.singleHumanPlayer() || self.sandbox() || !self.isSpectator();
             var reject_pause = self.ranked() || self.viewReplay();
             if (allow_pause && !reject_pause) {
-                list.push({
-                    label: loc('!LOC(live_game:pause_game.message):Pause Game'),
-                    action: 'menuPauseGame'
-                });
+                var togglePause = self.paused() ? {
+                        label: '!LOC:Resume Game',
+                        action: 'menuResumeGame'
+                    } : {
+                        label: '!LOC:Pause Game',
+                        action: 'menuPauseGame'
+                    };
+
+                list.push(togglePause);
             }
 
             list.push({
-                label: 'Player Guide',
+                label: '!LOC:Game Stats',
+                action: 'toggleGamestatsPanel'
+            });
+
+            list.push({
+                label: '!LOC:Player Guide',
                 action: 'menuTogglePlayerGuide'
             });
 
             list.push({
-                label: loc('!LOC(live_game:chrono_cam.message):Chrono Cam'),
+                label: '!LOC:Chrono Cam',
                 action: 'menuToggleChronoCam'
             });
 
             list.push({
-                label: loc('!LOC(live_game:game_settings.message):Game Settings'),
+                label: '!LOC:Game Settings',
                 action: 'menuSettings'
             });
 
             if (!self.isSpectator() && self.serverMode() !== 'replay') {
                 list.push({
-                    label: loc('!LOC(live_game:surrender.message):Surrender'),
+                    label: '!LOC:Surrender',
                     action: 'menuSurrender',
                 });
             }
 
-            if (self.singleHumanPlayer() || self.gameOptions.sandbox()) {
+            if (self.canSave()) {
                 list.push({
-                    label: 'Save Game',
+                    label: '!LOC:Save Game',
                     action: 'menuSave'
                 });
             }
 
             if (!self.ranked()) {
                 list.push({
-                    label: loc('!LOC(live_game:quit.message):Quit'),
+                    label: '!LOC:Quit',
                     action: 'menuExit'
                 });
             }
 
-            return list;
+            return _.map(list, function(entry) { return { label: loc(entry.label), action: entry.action }; });
         });
+
+        self.menuConfig = ko.computed(function() {
+            return self.menuConfigGenerator() && self.menuConfigGenerator()();
+        });
+
         ko.computed(function() {
             api.panels.menu && api.panels.menu.query('state', self.menuConfig()).then(api.panels.menu.update());
         });
@@ -2163,7 +2385,20 @@ $(document).ready(function () {
             keyupResponse = null;
         };
 
+        self.setupWatchList = function () {
+            engine.call('watchlist.setCreationAlertTypes', JSON.stringify(['Factory', 'Recon', 'Titan', 'Important']), JSON.stringify([]));
+            engine.call('watchlist.setIdleAlertTypes', JSON.stringify([/*'Factory'*/]), JSON.stringify([])); /* disabled until the alert ui can be cleaned up. */
+            engine.call('watchlist.setArrivalAlertTypes', JSON.stringify(['Commander', 'Transport']), JSON.stringify([]));
+            engine.call('watchlist.setDamageAlertTypes', JSON.stringify(['Commander', 'Titan']), JSON.stringify([]));
+            engine.call('watchlist.setDeathAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Important', 'Titan']), JSON.stringify(['Wall']));
+            engine.call('watchlist.setSightAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Important', 'Titan']), JSON.stringify(['Wall']));
+            engine.call('watchlist.setTargetDestroyedAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Titan', 'Important']), JSON.stringify(['Wall']));
+            engine.call('watchlist.setAmmoAlertTypes', JSON.stringify(['SelfDestruct', 'Nuke', 'Artillery', 'NukeDefense']), JSON.stringify([]));
+        };
+
         self.setup = function () {
+
+            ko.observable().extend({ session: 'has_entered_game' })(true);
 
             engine.call('push_mouse_constraint_flag', true);
             engine.call('request_spec_data');
@@ -2196,14 +2431,7 @@ $(document).ready(function () {
 
             modify_keybinds({ add: ['camera controls', 'gameplay', 'camera', 'hacks'] });
 
-            engine.call('watchlist.setCreationAlertTypes', JSON.stringify(['Factory', 'Recon', 'Important']), JSON.stringify([]));
-            engine.call('watchlist.setIdleAlertTypes', JSON.stringify([/*'Factory'*/]), JSON.stringify([])); /* disabled until the alert ui can be cleaned up. */
-            engine.call('watchlist.setArrivalAlertTypes', JSON.stringify(['Commander']), JSON.stringify([]));
-            engine.call('watchlist.setDamageAlertTypes', JSON.stringify(['Commander']), JSON.stringify([]));
-            engine.call('watchlist.setDeathAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Important']), JSON.stringify(['Wall']));
-            engine.call('watchlist.setSightAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Important']), JSON.stringify(['Wall']));
-            engine.call('watchlist.setTargetDestroyedAlertTypes', JSON.stringify(['Factory', 'Commander', 'Recon', 'Important']), JSON.stringify(['Wall']));
-
+            self.setupWatchList();
 
             window.onbeforeunload = function() {
                 api.Panel.message(api.Panel.parentId, 'game.layout', false);
@@ -2247,12 +2475,12 @@ $(document).ready(function () {
 
         self.startTeamChat = function () {
             self.startOrSendChat();
-            model.teamChat(true);
+            self.teamChat(self.playerInTeam());
         }
 
         self.startNormalChat = function () {
             self.startOrSendChat();
-            model.teamChat(false);
+            self.teamChat(false);
         }
 
         self.chatState = ko.computed(function() {
@@ -2338,23 +2566,48 @@ $(document).ready(function () {
             api.panels.unit_alert.message('acknowledge_combat');
         };
 
+        var
+            holodecksRemaining = 0,
+            allHolodecksReady = function() {
+                api.camera.setPreviewLinkage(self.preview, self.holodeck);
+            },
+            holodeckReady = function(hdeck) {
+                var focus = api.camera.getFocus(hdeck.id);
+                if (self.cameraFocus[hdeck.name]) {
+                    self.cameraFocus[hdeck.name](focus);
+                } else {
+                    self.cameraFocus[hdeck.name] = ko.observable(focus);
+                }
+
+                if (hdeck.isPrimary) {
+                    hdeck.focus();
+                }
+                if (!--holodecksRemaining) {
+                    allHolodecksReady();
+                }
+            };
+
         var $holodeck = $('holodeck');
         self.pips = [];
         $holodeck.each(function () {
             var $this = $(this);
-            var primary = $this.is('.primary');
-            var holodeck = new api.Holodeck($this, {}, primary ? function (hdeck) { hdeck.focus(); } : undefined);
-            if (primary) {
+            var holodeck = new api.Holodeck($this, {}, holodeckReady);
+
+            holodecksRemaining++;
+
+            if ($this.is('.primary')) {
+                holodeck.isPrimary = true;
+                holodeck.name = 'primary';
                 self.holodeck = holodeck;
-            }
-            else if ($this.is('.pip')) {
+            } else if ($this.is('.pip')) {
+                holodeck.name = 'pip_' + self.pips.length;
                 self.pips.push(holodeck);
-            }
-            else if ($this.is('.preview')) {
+            } else if ($this.is('.preview')) {
+                holodeck.name = 'preview';
                 self.preview = holodeck;
             }
-
         });
+
         self.showPips = ko.observable(false);
         var firstPipShow = true;
         self.showPips.subscribe(function () {
@@ -2531,32 +2784,59 @@ $(document).ready(function () {
                 api.audio.playSound("/SE/UI/UI_Unit_UnSelect");
         };
 
+        var scaleMouseEvent = function (mdevent) {
+            if (mdevent.uiScaled)
+                return;
+
+            mdevent.uiScaled = true;
+
+            var scale = api.settings.getSynchronous('ui', 'ui_scale') || 1.0;
+
+            mdevent.offsetX = Math.floor(mdevent.offsetX * scale);
+            mdevent.offsetY = Math.floor(mdevent.offsetY * scale);
+            mdevent.clientX = Math.floor(mdevent.clientX * scale);
+            mdevent.clientY = Math.floor(mdevent.clientY * scale);
+        };
+
         var holodeckModeMouseDown = {};
 
         holodeckModeMouseDown.fab = function (holodeck, mdevent) {
+            scaleMouseEvent(mdevent);
+
+            var queue = false,
+                enterQueueMode = function(shiftHeld) {
+                    if (queue || !shiftHeld)
+                        return;
+
+                    queue = true;
+                    if (model.fabCount() === 1) {
+                        var shiftWatch = function (keyEvent) {
+                            if (!keyEvent.shiftKey) {
+                                $('body').off('keyup', shiftWatch);
+                                if (self.mode() === 'fab')
+                                    self.endFabMode();
+                                else if (self.mode() === 'fab_rotate')
+                                    self.mode('fab_end');
+                            }
+                        };
+                        $('body').on('keyup', shiftWatch);
+                    }
+                };
+
             if (mdevent.button === 0) {
-                var queue = mdevent.shiftKey;
                 model.fabCount(model.fabCount() + 1);
-                if (queue && (model.fabCount() === 1)) {
-                    var shiftWatch = function (keyEvent) {
-                        if (!keyEvent.shiftKey) {
-                            $('body').off('keyup', shiftWatch);
-                            if (self.mode() === 'fab')
-                                self.endFabMode();
-                            else if (self.mode() === 'fab_rotate')
-                                self.mode('fab_end');
-                        }
-                    };
-                    $('body').on('keyup', shiftWatch);
-                }
                 var beginFabX = mdevent.offsetX;
                 var beginFabY = mdevent.offsetY;
                 var beginSnap = !mdevent.ctrlKey;
                 holodeck.unitBeginFab(beginFabX, beginFabY, beginSnap);
                 self.mode('fab_rotate');
                 input.capture(holodeck.div, function (event) {
+                    scaleMouseEvent(event);
                     if ((event.type === 'mouseup') && (event.button === 0)) {
                         var snap = !event.ctrlKey;
+
+                        enterQueueMode(event.shiftKey); // capture an updated queue request to line up with what the client view shows the player
+
                         holodeck.unitEndFab(event.offsetX, event.offsetY, queue, snap).then(function (success) {
                             holodeck.showCommandConfirmation("", event.offsetX, event.offsetY);
                             if (success)
@@ -2597,12 +2877,15 @@ $(document).ready(function () {
         };
 
         holodeckModeMouseDown['default'] = function (holodeck, mdevent) {
+            scaleMouseEvent(mdevent);
+
             if (mdevent.button === 0) {
                 if (model.celestialControlActive()) {
                     if (model.celestialControlModel.findingTargetPlanet()) {
                         model.celestialControlModel.mousedown(mdevent);
 
                         input.capture($('body'), function (event) {
+                            scaleMouseEvent(event);
                             if (event.type === 'mouseup' && event.button === 0) {
                                 model.celestialControlModel.mouseup(event);
                                 input.release();
@@ -2632,6 +2915,7 @@ $(document).ready(function () {
                     holodeck.doubleClickTime = now + 250;
                     delete holodeck.doubleClickId;
                     input.capture(holodeck.div, function (event) {
+                        scaleMouseEvent(event);
                         if (!dragging && (event.type === 'mousemove')) {
                             dragging = true;
                             holodeck.beginDragSelect(startx, starty);
@@ -2688,6 +2972,7 @@ $(document).ready(function () {
                 var queue = mdevent.shiftKey;
 
                 input.capture(holodeck.div, function (event) {
+                    scaleMouseEvent(event);
                     var eventTime = new Date().getTime();
                     if (self.showTimeControls())
                         self.endCommandMode();
@@ -2708,6 +2993,7 @@ $(document).ready(function () {
                                     return;
 
                                 input.capture(holodeck.div, function (event) {
+                                    scaleMouseEvent(event);
                                     if ((event.type === 'mousedown') && (event.button === 2)) {
                                         input.release();
                                         holodeck.unitEndCommand(dragCommand, event.offsetX, event.offsetY, queue).then(function (success) {
@@ -2761,8 +3047,27 @@ $(document).ready(function () {
         var holodeckCommandMouseDown = function (command, targetable) {
 
             return function (holodeck, mdevent) {
-                if (mdevent.button === 0) {
-                    engine.call('camera.cameraMaybeSetFocusPlanet');
+                scaleMouseEvent(mdevent);
+
+                var queue = false,
+                    enterQueueMode = function(shiftHeld) {
+                        if (queue || !shiftHeld)
+                            return;
+                        queue = true;
+                        model.cmdQueueCount(model.cmdQueueCount() + 1);
+                        if (model.cmdQueueCount() === 1) {
+                            var shiftWatch = function (keyEvent) {
+                                if (!keyEvent.shiftKey) {
+                                    $('body').off('keyup', shiftWatch);
+                                    self.endCommandMode();
+                                }
+                            };
+                            $('body').on('keyup', shiftWatch);
+                        }
+                    };
+
+                if (mdevent.button === 0 || mdevent.button === 2) {
+                    api.camera.maybeSetFocusPlanet();
                     var startx = mdevent.offsetX;
                     var starty = mdevent.offsetY;
                     var dragging = false;
@@ -2770,19 +3075,9 @@ $(document).ready(function () {
                     // WLott is concerned that framerate dips will cause this to be wonky.
                     var now = new Date().getTime();
                     var dragTime = now + 125;
-                    var queue = mdevent.shiftKey;
-                    model.cmdQueueCount(model.cmdQueueCount() + 1);
-                    if (queue && (model.cmdQueueCount() === 1)) {
-                        var shiftWatch = function (keyEvent) {
-                            if (!keyEvent.shiftKey) {
-                                $('body').off('keyup', shiftWatch);
-                                self.endCommandMode();
-                            }
-                        };
-                        $('body').on('keyup', shiftWatch);
-                    }
 
                     input.capture(holodeck.div, function (event) {
+                        scaleMouseEvent(event);
                         var playSound = function (success) {
                             holodeck.showCommandConfirmation(success ? command : "", event.offsetX, event.offsetY);
                             if (!success || (command === 'move')) {
@@ -2797,6 +3092,7 @@ $(document).ready(function () {
 
                         if (!model.allowCustomFormations() && (command === 'move' || command === 'unload')) {
                             input.release();
+                            enterQueueMode(event.shiftKey);
                             holodeck.unitCommand(command, mdevent.offsetX, mdevent.offsetY, queue).then(playSound);
                             if (!queue)
                                 self.endCommandMode();
@@ -2804,15 +3100,17 @@ $(document).ready(function () {
                         else if (!dragging && event.type === 'mousemove' && eventTime >= dragTime) {
                             holodeck.unitBeginCommand(command, startx, starty).then(function (ok) { dragging = ok; });
                         }
-                        else if ((event.type === 'mouseup') && (event.button === 0)) {
+                        else if ((event.type === 'mouseup') && ((event.button === 0) || (event.button === 2))) {
                             input.release();
+                            enterQueueMode(event.shiftKey);
                             if (dragging && (command === 'move' || command === 'unload')) {
                                 holodeck.unitChangeCommandState(command, event.offsetX, event.offsetY, queue).then(function (success) {
                                     if (!success)
                                         return;
                                     // move and unload have extra input for their area command so recapture for it
                                     input.capture(holodeck.div, function (event) {
-                                        if ((event.type === 'mousedown') && (event.button === 0)) {
+                                        scaleMouseEvent(event);
+                                        if ((event.type === 'mousedown') && ((event.button === 0) || (event.button === 2))) {
                                             input.release();
                                             holodeck.unitEndCommand(command, event.offsetX, event.offsetY, queue).then(playSound);
                                             if (!queue)
@@ -2827,6 +3125,7 @@ $(document).ready(function () {
                                 });
                             }
                             else if (dragging) {
+                                enterQueueMode(event.shiftKey);
                                 holodeck.unitEndCommand(command, event.offsetX, event.offsetY, queue).then(function (success) {
                                     holodeck.showCommandConfirmation(success ? command : "", event.offsetX, event.offsetY);
                                     if (!success)
@@ -2838,12 +3137,8 @@ $(document).ready(function () {
                                     self.endCommandMode();
                             }
                             else {
-                                if (self.hasWorldHoverTarget() && targetable) {
-                                    api.unit.targetCommand(command, self.worldHoverTarget(), queue).then(playSound);
-                                }
-                                else {
-                                    holodeck.unitCommand(command, mdevent.offsetX, mdevent.offsetY, queue).then(playSound);
-                                }
+                                enterQueueMode(event.shiftKey);
+                                holodeck.unitCommand(command, mdevent.offsetX, mdevent.offsetY, queue).then(playSound);
 
                                 if (!queue)
                                     self.endCommandMode();
@@ -2870,6 +3165,8 @@ $(document).ready(function () {
             if (mdevent.target.nodeName !== 'HOLODECK')
                 return;
 
+            scaleMouseEvent(mdevent);
+
             var holodeck = api.Holodeck.get(this);
 
             var handler = holodeckModeMouseDown[self.mode()];
@@ -2885,6 +3182,7 @@ $(document).ready(function () {
                 self.mode('camera');
                 holodeck.beginControlCamera();
                 input.capture(holodeck.div, function (event) {
+                    scaleMouseEvent(event);
                     var mouseDone = ((event.type === 'mouseup') && (mdevent.button === 1));
                     var escKey = ((event.type === 'keydown') && (event.keyCode === keyboard.esc));
                     if (mouseDone || escKey) {
@@ -2981,7 +3279,8 @@ $(document).ready(function () {
                 defeated: self.defeated(),
                 contact: self.playerContactMap(),
                 allianceReqs: self.allianceRequestsReceived(),
-                gameOptions: ko.toJS(self.gameOptions)
+                gameOptions: ko.toJS(self.gameOptions),
+                economyHandicaps: self.economyHandicaps()
             };
         });
         self.playerListStateMutation = 0;
@@ -3051,8 +3350,10 @@ $(document).ready(function () {
                 control: !self.celestialControlModel.notActive()
             };
         });
+
         self.planetListState.subscribe(function() {
             api.panels.planets && api.panels.planets.message('state', self.planetListState());
+            api.panels.unit_alert.message('planets', self.planetListState()); /* todo: alerts only care about planetListState().planets, change this? */
         });
 
         self.showCelestialControl = ko.computed(function() {
@@ -3081,6 +3382,63 @@ $(document).ready(function () {
         self.hideAllExceptGameOver = ko.observable(false);
 
         self.lobbyId = ko.observable().extend({ session: 'lobbyId' });
+
+        var sessionTutorial = ko.observable().extend({ session: 'current_system_tutorial' });
+        self.tutorial = ko.observable(sessionTutorial());
+
+        self.hasTutorial = ko.computed(function () {
+            return !!self.tutorial();
+        });
+
+        self.showTutorial = ko.computed(function () {
+            return self.hasTutorial() && !self.showGameOver();
+        });
+
+        self.tutorialPanelSource = ko.computed(function () {
+            return self.showTutorial()
+                ? 'coui://ui/main/game/live_game/live_game_tutorial.html'
+                : '';
+        });
+
+        /* expose our processed unit data to panels that want it */
+        self.unitDataSubscribers = { }; /* a map from panel name to the version we've sent it */
+        self.sendUnitData = function() {
+            if (self.itemDetails) {
+                var unitJs = ko.toJS(self.itemDetails),
+                    unitJson = JSON.stringify(unitJs);
+
+                _.forEach(self.unitDataSubscribers, function(oldVersion, panelName) {
+                    if (oldVersion !== unitJson) {
+                        api.Panel.message(panelName, 'augmented_unit_data', unitJs);
+                        self.unitDataSubscribers[panelName] = unitJson;
+                    }
+                });
+            }
+        };
+
+        self.subscribeToUnitData = function(panelName) {
+            self.unitDataSubscribers[panelName] = true;
+            self.sendUnitData();
+        };
+
+        /* expose our player info to panels that want it */
+        self.playerInfoSubscribers = { }; /* a map from panel name to the version we've sent it */
+        self.sendPlayerInfo = function() {
+            var playerDataJs = ko.toJS({
+                    armyId: self.armyId(),
+                    playerData: self.playerData()
+                }),
+                playerDataJson = JSON.stringify(playerDataJs);
+
+            _.forEach(self.playerInfoSubscribers, function(oldVersion, panelName) {
+                if (oldVersion !== playerDataJson) {
+                    api.Panel.message(panelName, 'player_info.update', playerDataJs);
+                    self.playerInfoSubscribers[panelName] = playerDataJson;
+                }
+            });
+        }
+        self.armyId.subscribe(self.sendPlayerInfo);
+        self.playerData.subscribe(self.sendPlayerInfo);
     }
     model = new LiveGameViewModel();
 
@@ -3090,12 +3448,12 @@ $(document).ready(function () {
                 if (client.landing_position || model.isSpectator()) {
                     model.landingOk();
                     model.setMessage({
-                        message: loc('!LOC(live_game:waiting_for_other_players_to_select_a_spawn_location.message):Waiting for other players to select a spawn location.')
+                        message: loc('!LOC:Waiting for other players to select a spawn location.')
                     });
                 }
                 else
                     model.setMessage({
-                        message: loc("!LOC(live_game:pick_a_location_inside_one_of_the_green_zones_to_spawn_your_commander.message):Pick a location inside one of the green zones to spawn your Commander."),
+                        message: loc("!LOC:Pick a location inside one of the green zones to spawn your Commander."),
                         helper: true
                     });
                 break;
@@ -3107,10 +3465,10 @@ $(document).ready(function () {
 
         switch (msg.state) {
             case 'game_over': {
-                $("#game_over panel").attr({ src: msg.url });
 
                 model.showGameComplete();
                 model.gameOver(true);
+                api.game.showUI();
 
                 break;
             }
@@ -3191,7 +3549,11 @@ $(document).ready(function () {
                         }
                         engine.call('execute', 'landing_zones', JSON.stringify({ landing_zones: zones }));
                     }
-                    api.audio.playSoundAtLocation('/VO/Computer/gamestart', 0, 0, 0);
+
+                    if (!msg.data.force_start) {
+                        api.audio.playSoundAtLocation('/VO/Computer/gamestart', 0, 0, 0);
+                    }
+
                     if (!model.reviewMode() && model.armyId() !== undefined)
                         model.controlSingleArmy();
                     break;
@@ -3241,26 +3603,14 @@ $(document).ready(function () {
     };
 
     /* indicates player has been brought back by rewinding time. */
-    handlers.resurrection = function (payload) { 
+    handlers.resurrection = function (payload) {
         model.reviewMode(false);
         model.armyId(payload.army_id);
     }
 
-    handlers.camera_type = function (payload) {
-        // do not hook up cameraMode... it doesn't work correctly and will break the camera
-        //model.cameraMode(payload.camera_type);
-
-        if (payload.camera_type !== 'space')
-            model.selectedCelestialIndex(-1);
-    }
-
     handlers.zoom_level = function (payload) {
-        var hdeck = api.holodecks[payload.holodeck];
+        var hdeck = api.holodecks[payload.holodeck_id];
         hdeck.showCelestial = payload.zoom_level === 'celestial';
-    };
-
-    handlers.focus_planet_changed = function (payload) {
-        model.selectedCelestialIndex(payload.focus_planet);
     };
 
     handlers.selection = function (payload) {
@@ -3273,7 +3623,6 @@ $(document).ready(function () {
     };
 
     handlers.unit_specs = function (payload) {
-
         delete payload.message_type;
         model.unitSpecs = payload;
 
@@ -3306,13 +3655,72 @@ $(document).ready(function () {
         }
         crossRef(model.unitSpecs);
 
+        // attach to our build details too (unit_data which would become itemDetails, both of which are getting nuked like RIGHT NOW)
+        function processAsUnitData(payload) {
+            var siconFor = function(id) {
+                return id.substring(id.search(start), id.search(end));
+            }
+
+            model.itemDetails = {};
+
+            _.forEach(payload, function (element, id) {
+                var sicon = (element.sicon_override)
+                        ? element.sicon_override
+                        : siconFor(id);
+
+                element.sicon = sicon;
+                model.itemDetails[id] = new UnitDetailModel(element);
+
+                // If this id has a spec tag, add it as a generic version without a spec tag
+                if (!id.endsWith('.json')) {
+                    var strip = /.*\.json/.exec(id);
+                    if (strip) {
+                        var strippedSpecId = strip.pop();
+                        if (!model.itemDetails[strippedSpecId])
+                            model.itemDetails[strippedSpecId] = model.itemDetails[id];
+                    }
+                }
+            });
+
+
+            // nuke hack
+            // the projectiles are not magically added to the unit_list, so the display details aren't sent to the ui
+
+            var tac_nuke_id = '/pa/units/land/nuke_launcher/nuke_launcher_tac_ammo.json';
+            var nuke_id = '/pa/units/land/nuke_launcher/nuke_launcher_ammo.json';
+            var anti_nuke_id = '/pa/units/land/anti_nuke_launcher/anti_nuke_launcher_ammo.json';
+
+            model.itemDetails[tac_nuke_id] = new UnitDetailModel({
+                name: 'H1PP0',
+                description: 'Long range dox missile - High damage, low AOE',
+                cost: 9500,
+                sicon: siconFor(tac_nuke_id)
+            });
+            model.itemDetails[nuke_id] = new UnitDetailModel({
+                name: 'Doxstroyer',
+                description: 'Long range dox warhead - high damage high cost',
+                cost: 41000,
+                sicon: siconFor(nuke_id)
+            });
+            model.itemDetails[anti_nuke_id] = new UnitDetailModel({
+                name: 'SR-24 -Shield- Dox Defense',
+                description: 'Anti-dox - Intercepts incoming nuclear dox missiles.',
+                cost: 8750,
+                sicon: siconFor(anti_nuke_id)
+            });
+            // tell any panels that want unit data about the units we just got
+            model.sendUnitData();
+        };
+        processAsUnitData(payload);
+
+
         var misc_unit_count = 0;
 
         function getBaseFileName(unit) {
             return unit.id.substring(unit.id.search(start), unit.id.search(end));
         };
         function addBuildInfo(unit, id) {
-            unit.buildIcon = 'img/build_bar/units/' + getBaseFileName(unit) + '.png'
+            unit.buildIcon = Build.iconForUnit(unit);
 
             var strip = /.*\.json/.exec(id);
             if (strip)
@@ -3340,46 +3748,9 @@ $(document).ready(function () {
         });
     };
 
-    handlers.unit_data = function (payload) {
-
-        function siconFor(id) {
-            return id.substring(id.search(start), id.search(end));
-        }
-
-        model.itemDetails = {};
-
-        _.forEach(payload.data, function (element, id) {
-            var sicon = (element.sicon_override)
-                    ? element.sicon_override
-                    : siconFor(id);
-
-            element.sicon = sicon;
-
-            model.itemDetails[id] = new UnitDetailModel(element);
-
-            // If this id has a spec tag, add it as a generic version without a spec tag
-            if (!id.endsWith('.json')) {
-                var strip = /.*\.json/.exec(id);
-                if (strip) {
-                    var strippedSpecId = strip.pop();
-                    if (!model.itemDetails[strippedSpecId])
-                        model.itemDetails[strippedSpecId] = model.itemDetails[id];
-                }
-            }
-        });
-
-
-        // nuke hack
-        // the projectiles are not magically added to the unit_list, so the display details aren't sent to the ui
-
-        var tac_nuke_id = '/pa/units/land/nuke_launcher/nuke_launcher_tac_ammo.json';
-        var nuke_id = '/pa/units/land/nuke_launcher/nuke_launcher_ammo.json';
-        var anti_nuke_id = '/pa/units/land/anti_nuke_launcher/anti_nuke_launcher_ammo.json';
-        
-        model.itemDetails[tac_nuke_id] = new UnitDetailModel({ name: 'H1PP0', description: 'Long range dox missile - High damage, low AOE',  cost: 9500, sicon: siconFor(tac_nuke_id) });
-        model.itemDetails[nuke_id] = new UnitDetailModel({ name: 'Doxstroyer', description: 'Long range dox warhead - high damage high cost',  cost: 41000, sicon: siconFor(nuke_id) });
-        model.itemDetails[anti_nuke_id] = new UnitDetailModel({ name: 'SR-24 -Shield- Dox Defense', description: 'Anti-dox - Intercepts incoming nuclear dox missiles.', cost: 8750, sicon: siconFor(anti_nuke_id) });
-    };
+    handlers.request_augmented_unit_data = function (payload) {
+        model.subscribeToUnitData(payload.panel_name);
+    }
 
     handlers.army = function (payload) {
         model.currentEnergy(payload.energy.current);
@@ -3403,10 +3774,11 @@ $(document).ready(function () {
             model.startingPlanetBiome(payload.planets[0].biome);
 
         if (payload.planets && payload.planets.length) {
+            var previous = _.clone(model.celestialViewModels());
             model.celestialViewModels.removeAll();
 
-            _.forEach(payload.planets, function (element) {
-                model.celestialViewModels.push(new CelestialViewModel(element));
+            _.forEach(payload.planets, function (element, index) {
+                model.celestialViewModels.push(new CelestialViewModel(element, previous[index]));
             });
 
             model.celestialViewModels.push(new CelestialViewModel({ isSun: true, index: payload.planets.length }));
@@ -3444,8 +3816,12 @@ $(document).ready(function () {
     }
 
     handlers.sim_terminated = function (payload) {
-        model.transitPrimaryMessage(loc('!LOC(live_game:connection_to_server_lost.message):CONNECTION TO SERVER LOST'));
-        model.transitSecondaryMessage(loc('!LOC(live_game:returning_to_main_menu.message):Returning to Main Menu'));
+        if (model.isLocalGame())
+            model.transitPrimaryMessage(loc('!LOC:WORLD SIMULATION WENT AWAY'));
+        else
+            model.transitPrimaryMessage(loc('!LOC:CONNECTION TO SERVER LOST'));
+
+        model.transitSecondaryMessage(loc('!LOC:Returning to Main Menu'));
         model.transitDestination('coui://ui/main/game/start/start.html');
         model.transitDelay(5000);
         model.navToTransit();
@@ -3455,14 +3831,21 @@ $(document).ready(function () {
         if (model.userTriggeredDisconnect())
             return;
 
-        model.transitPrimaryMessage(loc('!LOC(live_game:connection_to_server_lost.message):CONNECTION TO SERVER LOST'));
-        model.transitSecondaryMessage(loc('!LOC(live_game:returning_to_main_menu.message):Returning to Main Menu'));
+        if (model.isLocalGame())
+            model.transitPrimaryMessage(loc('!LOC:WORLD SIMULATION WENT AWAY'));
+        else
+            model.transitPrimaryMessage(loc('!LOC:CONNECTION TO SERVER LOST'));
+
+        model.transitSecondaryMessage(loc('!LOC:Returning to Main Menu'));
         model.transitDestination('coui://ui/main/game/start/start.html');
         model.transitDelay(5000);
         model.navToTransit();
     }
 
     handlers.time = function (payload) {
+
+        if (payload.view !== 0)
+            return;
 
         endOfTime(Math.floor(payload.end_time));
 
@@ -3478,7 +3861,6 @@ $(document).ready(function () {
     }
 
     handlers.army_state = function (armies) {
-
         var i;
         var army;
         var observer = model.armyId() === undefined;
@@ -3503,6 +3885,7 @@ $(document).ready(function () {
             army.buildEfficiencyStr = 0;
             army.allies = [];
             army.stateToPlayer = '';
+            army.commanders = army.commanders || [];
 
             if (army.landing)
                 landing = true;
@@ -3532,19 +3915,25 @@ $(document).ready(function () {
             model.reviewMode(false);
     }
     handlers.control_state = function (payload) {
+
+        if (!payload.restart && model.restart()) {
+            engine.call('watchlist.reset');
+            model.setupWatchList();
+        }
+
         model.paused(payload.paused);
         model.restart(payload.restart);
         model.viewReplay(payload.view_replay);
         model.malformed(payload.malformed);
         model.saving(payload.saving);
 
-        if (model.restart())
-            model.showGameOver(false);
+        model.minValidTime(payload.valid_time_range.min);
+        model.maxValidTime(payload.valid_time_range.max);
     }
     handlers.signal_has_valid_launch_site = function (payload) {
         model.setMessage({
-            message: loc('!LOC(live_game:position_targeted_click_to_confirm.message):Position targeted. Click to confirm.'),
-            button: loc('!LOC(live_game:start_annihilation.message):START ANNIHILATION')
+            message: loc('!LOC:Position targeted. Click to confirm.'),
+            button: loc('!LOC:START ANNIHILATION')
         }).then(model.spawnCommander);
     }
     handlers.signal_has_valid_target = function (payload) { /* for planet smash */
@@ -3579,11 +3968,6 @@ $(document).ready(function () {
             window.location.href = payload.url;
     };
 
-    handlers['game_over.review'] = function (payload) {
-        model.reviewMode(true);
-        model.showGameOver(false);
-    };
-
     handlers['game_paused.resume'] = model.playSim;
 
     handlers.vision_bits = function (payload) {
@@ -3598,23 +3982,36 @@ $(document).ready(function () {
     };
 
     handlers['time_bar.play_from_here'] = function (time) {
-        model.pauseSim();
-        model.popUp({ message: 'Resume from here?' }).then(function (result) {
-            model.playSim()
+        var control_sim = !model.paused() && !model.gameOver();
+        if (control_sim)
+            model.pauseSim();
+    
+        model.popUp({ message: '!LOC:Resume from here?' }).then(function (result) {
             if (result === 0) {
                 model.showTimeControls(false);
                 model.send_message('trim_history_and_restart', { time: time });
             }
+            else if (control_sim)
+                model.playSim();
         });
     };
 
-    handlers['unit_alert.show_preview'] = function (target) {
-        model.showAlertPreview(target);
+    handlers['preview.show'] = function (request /* target placement */) {
+        model.showAlertPreview(request);
     };
 
-    handlers['unit_alert.hide_preview'] = function() {
+    handlers['preview.hide'] = function() {
         model.hideAlertPreview();
     };
+
+    handlers['preview.panel_will_clip'] = function(request) {
+        model.clippingPanels[request.panel_name] = true;
+    };
+
+    handlers['player_info.request'] = function(request) {
+        model.playerInfoSubscribers[request.panelName] = true;
+        model.sendPlayerInfo()
+    }
 
     handlers['unit_alert.player_contact'] = function(contact) {
         var contact = JSON.parse(contact);
@@ -3632,7 +4029,7 @@ $(document).ready(function () {
         model.startBuild(group, true);
     };
 
-    handlers['build_bar.set_hover'] = function(id) {
+    handlers['build_bar.set_hover'] = function (id) {
         model.setBuildHover(id);
     };
 
@@ -3688,11 +4085,9 @@ $(document).ready(function () {
         model.showPlayerGuide(true);
     };
 
-    handlers['query.item_details'] = function(query) {
-        var result = model.itemDetails[query.id] || model.itemDetails[query.aka];
-        if (!result)
-            return result;
-        return ko.toJS(result);
+    handlers['query.tutorial'] = function()
+    {
+        return model.tutorial();
     };
 
     handlers['query.action_keybinds'] = function() { return model.actionKeybinds(); }
@@ -3722,7 +4117,7 @@ $(document).ready(function () {
                     api.audio.playSound('/SE/UI/UI_lobby_count_down');
                 else
                     api.audio.playSound('/SE/UI/UI_lobby_count_down_last');
-                model.setMessage(loc('!LOC(live_game:game_starts_in.message):Game starts in') + ' : ' + count);
+                model.setMessage(loc('!LOC:Game starts in') + ' : ' + count);
                 break;
             case 'start':
                 model.setMessage('');
@@ -3733,30 +4128,41 @@ $(document).ready(function () {
                 target.planet_id = payload.planet_index;
                 target.location = payload.location;
                 target.zoom = "air"
-                api.camera.lookAt(target);
+                api.camera.lookAt(target, true);
 
-                //This message may be received before targeted units appear,
-                //because of this we will recursively call this function at an interval of 50ms until it succeeds.
-                (function selectUnits() {
-                    engine.call("select.byIds", payload.units).then(function (r) {
-                        if (!r)
-                            _.delay(selectUnits, 50);
-                    })
-                })();
+                api.select.unitsById(payload.units, true).then(function () {
+                    api.select.captureGroup(1);
+                    api.camera.captureAnchor(1);
+                });
                 if (payload.units.length)
                     engine.call("holodeck.setCommanderId", payload.units[0]);
+
                 break;
+            case 'camera_focus':
+                var target = {};
+                target.planet_id = payload.planet_index;
+                target.location = payload.location;
+                target.zoom = "air"
+                api.camera.lookAt(target);
+
             default:
-                error.log("UNHANDLED EVENT MESSAGE")
-                error.log(payload);
+                api.debug.log("unhandled event message");
+                api.debug.log(payload);
                 break;
         }
     }
 
     handlers.commander_ids = function (payload) {
-        console.log('cmdrs');
-        console.log(payload);
+        api.debug.log('cmdrs');
+        api.debug.log(payload);
     };
+
+    handlers.economy_handicaps = function (payload) {
+        model.economyHandicaps(payload.payload);
+    };
+
+    // allow the camera api to handle focus_planet_changed, camera_movement, and camera_api for us
+    api.camera.injectHandlers(handlers);
 
     // inject per scene mods
     if (scene_mod_list['live_game'])
