@@ -1,9 +1,31 @@
+var Build = (function() {
+    var FALLBACK_ICON = 'coui://ui/main/game/live_game/img/build_bar/img_missing_unit.png';
+    var pathWithoutExtensionMatch = /(.*)\.json[^\/]*$/;
 
-function BuildHotkeyModel() {
-    var self = this;
+    var iconForSpecId = function(id)
+    {
+        var match = null;
+        if (id)
+            match = pathWithoutExtensionMatch.exec(id);
 
-    self.SpecIdToGridMap = ko.observable(
-        {
+        if (_.size(match) < 2)
+            return FALLBACK_ICON;
+
+        return 'coui:/' + match[1] + '_icon_buildbar.png';
+    };
+
+    var iconForUnit = function (unit)
+    {
+        if (!unit)
+            return FALLBACK_ICON;
+        return iconForSpecId(unit.id);
+    };
+
+    var HotkeyModel = function() {
+        var self = this;
+
+        self.SpecIdToGridMap = ko.observable(
+            {
             "/pa/units/land/control_module/control_module.json": ["utility", 1],
             "/pa/units/land/radar_adv/radar_adv.json": ["utility", 2],
             "/pa/units/land/energy_plant_adv/energy_plant_adv.json": ["utility", 3],
@@ -98,7 +120,13 @@ function BuildHotkeyModel() {
             "/pa/units/land/land_mine/land_mine.json": ["ammo", 10],
             "/pa/units/land/anti_nuke_launcher/anti_nuke_launcher_ammo.json": ["ammo", 13],
             "/pa/units/land/nuke_launcher/nuke_launcher_ammo.json": ["ammo", 14],
-            "/pa/units/land/nuke_launcher/nuke_launcher_tac_ammo.json": ["ammo", 13],
+            "/pa/units/land/nuke_launcher/nuke_launcher_tac_ammo.json": ["ammo", 13]
         }
     );
 };
+    return {
+        iconForSpecId: iconForSpecId,
+        iconForUnit: iconForUnit,
+        HotkeyModel: HotkeyModel
+    };
+})();
