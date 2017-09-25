@@ -4,9 +4,9 @@
     "display_name": "Dox4Lyf Mod",
     "description": "Dox are love, dox are life. Annihilate your foes with giant dox and dox cannons. Includes two experimental dox.",
     "author": "KillerKiwiJuice",
-    "version": "4.46",
+    "version": "4.5",
     "build": "Current",
-    "date": "2015/09/29",
+    "date": "2017/09/25",
     "signature": "not yet implemented",
     "category": [
         "in-game",
@@ -17,5 +17,8 @@
     "enabled": true,
     "dependencies": [
         "com.pa.doxlyf.ui"
-  ]  
+  ],
+    "companions": [
+        "com.pa.doxlyf.ui"
+  ]
 }
